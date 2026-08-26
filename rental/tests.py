@@ -7,7 +7,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Borrower, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
+from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
+from .pdf import create_or_replace_document
 
 
 def create_case(borrower, start, end, status=RentalCase.Status.RESERVED):
@@ -411,3 +412,69 @@ class ReturnViewTests(TestCase):
         self.case.refresh_from_db()
         self.assertEqual(self.case.status, RentalCase.Status.HANDED_OVER)
         self.assertEqual(self.case.protocols.count(), 0)
+
+
+class DocumentPdfTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='dokumente', password='testpass123')
+        self.category = ProductCategory.objects.create(name='PDF-Ausstattung')
+        self.product = Product.objects.create(
+            name='Getränkekühlschrank',
+            category=self.category,
+            stock_quantity=1,
+            storage_location='Lager 2',
+        )
+        ProductAccessory.objects.create(product=self.product, name='Stromkabel', quantity=1)
+        self.borrower = Borrower.objects.create(
+            name='PDF Entleiher',
+            organization='Förderverein PDF',
+            email='pdf@example.org',
+            street='Musterstraße 1',
+            postal_code='12345',
+            city='Musterstadt',
+        )
+        self.case = RentalCase.objects.create(
+            borrower=self.borrower,
+            reserved_from=timezone.now(),
+            reserved_until=timezone.now() + timezone.timedelta(days=1),
+            status=RentalCase.Status.RESERVED,
+            expected_donation=20,
+            notes='Bitte sauber zurückgeben.',
+        )
+        RentalCaseItem.objects.create(rental_case=self.case, product=self.product, quantity=1)
+
+    def test_reservation_pdf_is_generated_and_stored_as_document(self):
+        document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        self.assertEqual(document.document_type, Document.DocumentType.RESERVATION)
+        self.assertTrue(document.file.name.startswith('documents/reservierungsbestaetigung-'))
+        document.file.open('rb')
+        self.assertEqual(document.file.read(4), b'%PDF')
+        document.file.close()
+
+    def test_reservation_document_route_requires_login(self):
+        response = self.client.get(reverse('rental:reservation_document', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_reservation_document_route_creates_pdf_and_redirects_to_download(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:reservation_document', args=[self.case.pk]))
+
+        document = self.case.documents.get(document_type=Document.DocumentType.RESERVATION)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
+
+    def test_document_download_returns_pdf_inline(self):
+        self.client.force_login(self.user)
+        document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        response = self.client.get(reverse('rental:document_download', args=[document.pk]))
+
+        body = b''.join(response.streaming_content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response['Content-Disposition'].startswith('inline;'))
+        self.assertEqual(body[:4], b'%PDF')

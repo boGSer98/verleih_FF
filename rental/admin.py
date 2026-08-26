@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 
 from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
+from .pdf import create_or_replace_document
 
 
 @admin.register(ProductCategory)
@@ -65,7 +66,16 @@ class RentalCaseAdmin(admin.ModelAdmin):
     readonly_fields = ['number', 'created_at', 'updated_at', 'closed_at']
     date_hierarchy = 'reserved_from'
     inlines = [RentalCaseItemInline, ProtocolInline, DocumentInline]
-    actions = ['mark_reserved', 'mark_prepared', 'mark_handed_over', 'mark_donation_received', 'mark_returned', 'mark_completed', 'mark_cancelled']
+    actions = [
+        'mark_reserved',
+        'mark_prepared',
+        'mark_handed_over',
+        'mark_donation_received',
+        'mark_returned',
+        'mark_completed',
+        'mark_cancelled',
+        'generate_reservation_documents',
+    ]
 
     def _transition_selection(self, request, queryset, target_status):
         changed = 0
@@ -108,6 +118,14 @@ class RentalCaseAdmin(admin.ModelAdmin):
     @admin.action(description='Status auf „Storniert“ setzen')
     def mark_cancelled(self, request, queryset):
         self._transition_selection(request, queryset, RentalCase.Status.CANCELLED)
+
+    @admin.action(description='Reservierungsbestätigung als PDF erzeugen')
+    def generate_reservation_documents(self, request, queryset):
+        created = 0
+        for rental_case in queryset.prefetch_related('items__product__accessories'):
+            create_or_replace_document(rental_case, Document.DocumentType.RESERVATION, request=request)
+            created += 1
+        self.message_user(request, f'{created} Reservierungsbestätigung(en) erzeugt.', messages.SUCCESS)
 
 
 @admin.register(Protocol)

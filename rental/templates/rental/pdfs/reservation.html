@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Reservierungsbestätigung {{ rental_case.number }}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { color: #18212f; font-family: sans-serif; font-size: 11pt; line-height: 1.45; }
+    header { border-bottom: 2px solid #1955a6; margin-bottom: 18px; padding-bottom: 12px; }
+    h1 { color: #1955a6; font-size: 22pt; margin: 0 0 6px; }
+    h2 { color: #1955a6; font-size: 14pt; margin: 20px 0 8px; }
+    .meta { color: #5d6b7c; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .box { border: 1px solid #d4dde8; border-radius: 8px; padding: 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #d4dde8; padding: 7px; text-align: left; vertical-align: top; }
+    th { background: #eef4fb; }
+    .amounts { width: 55%; margin-left: auto; }
+    .note { background: #f8fafc; border-left: 4px solid #1955a6; padding: 10px; margin-top: 14px; }
+    footer { border-top: 1px solid #d4dde8; color: #5d6b7c; font-size: 9pt; margin-top: 28px; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Reservierungsbestätigung</h1>
+    <div class="meta">Vorgang {{ rental_case.number }} · erstellt am {{ generated_at|date:"d.m.Y H:i" }}</div>
+  </header>
+
+  <section class="grid">
+    <div class="box">
+      <h2>Entleiher</h2>
+      <strong>{{ rental_case.borrower.name }}</strong><br>
+      {% if rental_case.borrower.organization %}{{ rental_case.borrower.organization }}<br>{% endif %}
+      {{ rental_case.borrower.email }}<br>
+      {% if rental_case.borrower.phone %}{{ rental_case.borrower.phone }}<br>{% endif %}
+      {% if rental_case.borrower.street %}{{ rental_case.borrower.street }}<br>{% endif %}
+      {% if rental_case.borrower.postal_code or rental_case.borrower.city %}{{ rental_case.borrower.postal_code }} {{ rental_case.borrower.city }}{% endif %}
+    </div>
+    <div class="box">
+      <h2>Reservierungszeitraum</h2>
+      <strong>Von:</strong> {{ rental_case.reserved_from|date:"d.m.Y H:i" }}<br>
+      <strong>Bis:</strong> {{ rental_case.reserved_until|date:"d.m.Y H:i" }}<br>
+      <strong>Status:</strong> {{ rental_case.get_status_display }}
+    </div>
+  </section>
+
+  <h2>Reservierte Ausstattung</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Menge</th>
+        <th>Artikel</th>
+        <th>Zubehör / Hinweise</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+        <tr>
+          <td>{{ item.quantity }}</td>
+          <td>
+            <strong>{{ item.product.name }}</strong><br>
+            {% if item.product.storage_location %}<span class="meta">Lagerort: {{ item.product.storage_location }}</span>{% endif %}
+          </td>
+          <td>
+            {% if item.product.accessories.all %}
+              <ul>
+                {% for accessory in item.product.accessories.all %}
+                  <li>{{ accessory.quantity }} × {{ accessory.name }}{% if accessory.required %} · Pflichtbestandteil{% endif %}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              Keine Zubehördaten erfasst.
+            {% endif %}
+            {% if item.notes %}<p>{{ item.notes }}</p>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3">Noch keine Artikelpositionen erfasst.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Beträge</h2>
+  <table class="amounts">
+    <tr><th>Erwartete Spende</th><td>{{ rental_case.expected_donation }} €</td></tr>
+    <tr><th>Erhaltene Spende</th><td>{{ rental_case.received_donation }} €</td></tr>
+  </table>
+
+  {% if rental_case.notes %}
+    <div class="note">
+      <strong>Hinweise:</strong><br>
+      {{ rental_case.notes|linebreaksbr }}
+    </div>
+  {% endif %}
+
+  <footer>
+    Diese Reservierungsbestätigung dokumentiert den aktuellen Vorgangsstand im Verleihsystem des Fördervereins.
+  </footer>
+</body>
+</html>
