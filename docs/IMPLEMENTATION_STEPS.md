@@ -130,6 +130,8 @@ Abnahmekriterien:
 
 ## Phase 5 – Mobile Rücknahme
 
+Status: erste geführte mobile Rücknahmemaske mit Abschnittsbestätigungen umgesetzt.
+
 Ziel: Rücknahme kann vor Ort vollständig dokumentiert werden.
 
 Aufgaben:

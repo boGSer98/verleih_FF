@@ -43,7 +43,7 @@ Storniert
 2. Verfügbarkeitsprüfung für Artikel und Zeitraum ergänzen. Status: mengenbasierte Überschneidungslogik für blockierende Vorgänge umgesetzt.
 3. Prozess-Dashboard bereitstellen. Status: mobile Tagesübersicht für Abholungen, Rücknahmen, offene Spenden und Klärfälle umgesetzt.
 4. Mobile Übergabe bauen. Status: Touch-optimierte Übergabemaske mit Artikelzuständen, Protokollnotiz, zwei Signaturen und Statuswechsel auf „Übergeben“ umgesetzt.
-5. Mobile Rücknahme bauen.
+5. Mobile Rücknahme bauen. Status: Geführte Abschnittsmaske für Vorgangsprüfung, Artikelzustand, Zubehörprüfung, Schäden/Reinigung, Signaturen und Statuswechsel auf „Zurückgenommen“ oder „Klärung nötig“ umgesetzt.
 6. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen.
 7. SMTP-Mailversand mit PDF-Anhang implementieren.
 8. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.

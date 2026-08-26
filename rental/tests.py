@@ -1,4 +1,5 @@
 import base64
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -292,4 +293,121 @@ class HandoverViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.case.refresh_from_db()
         self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
+        self.assertEqual(self.case.protocols.count(), 0)
+
+
+class ReturnViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='ruecknahme', password='testpass123')
+        self.category = ProductCategory.objects.create(name='Rückgabeausstattung')
+        self.product = Product.objects.create(
+            name='Bierzeltgarnitur',
+            category=self.category,
+            stock_quantity=4,
+            storage_location='Halle',
+        )
+        ProductAccessory.objects.create(product=self.product, name='Tischplatte', quantity=1)
+        ProductAccessory.objects.create(product=self.product, name='Bank', quantity=2)
+        self.borrower = Borrower.objects.create(name='Max Rückgabe', email='max@example.org')
+        self.case = RentalCase.objects.create(
+            borrower=self.borrower,
+            reserved_from=timezone.now() - timezone.timedelta(days=1),
+            reserved_until=timezone.now(),
+            status=RentalCase.Status.HANDED_OVER,
+        )
+        self.item = RentalCaseItem.objects.create(
+            rental_case=self.case,
+            product=self.product,
+            quantity=1,
+            handover_condition='vollständig und sauber',
+        )
+        self.signature_data = 'data:image/png;base64,' + base64.b64encode(b'return-signature-bytes' * 10).decode('ascii')
+
+    def _valid_post_data(self, **overrides):
+        data = {
+            'identity_confirmed': 'yes',
+            'all_items_checked': 'yes',
+            f'return_status_{self.item.pk}': 'ok',
+            f'accessory_status_{self.item.pk}': 'complete',
+            f'damage_amount_{self.item.pk}': '0',
+            f'return_note_{self.item.pk}': 'vor Ort geprüft',
+            'notes': 'Rücknahme am Vereinsheim',
+            'borrower_signature_data': self.signature_data,
+            'club_signature_data': self.signature_data,
+        }
+        data.update(overrides)
+        return data
+
+    def test_return_requires_login(self):
+        response = self.client.get(reverse('rental:return', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_return_page_is_guided_mobile_signature_form(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:return', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
+        self.assertIn('Geführte Rücknahme', content)
+        self.assertIn('Entleiher und Vorgang geprüft', content)
+        self.assertIn('Artikel, Schäden und Zubehör prüfen', content)
+        self.assertIn('Alle Artikel, Schäden und Zubehöre wurden geprüft', content)
+        self.assertIn('data-step="2" disabled', content)
+        self.assertIn('touch-action:none', content)
+        self.assertIn('Tischplatte', content)
+
+    def test_return_post_without_issues_sets_returned_and_creates_protocol(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:return', args=[self.case.pk]), self._valid_post_data())
+
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.item.refresh_from_db()
+        protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.RETURN)
+        self.assertEqual(self.case.status, RentalCase.Status.RETURNED)
+        self.assertFalse(self.item.missing)
+        self.assertFalse(self.item.damaged)
+        self.assertIn('Artikel vollständig', self.item.return_condition)
+        self.assertIn('Zubehör vollständig', self.item.return_condition)
+        self.assertEqual(protocol.notes, 'Rücknahme am Vereinsheim')
+        self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
+        self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
+
+    def test_return_post_with_damage_sets_clarification(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:return', args=[self.case.pk]), self._valid_post_data(
+            **{
+                f'return_status_{self.item.pk}': 'damaged',
+                f'accessory_status_{self.item.pk}': 'damaged',
+                f'damage_amount_{self.item.pk}': '12.50',
+                f'return_note_{self.item.pk}': 'Bank gebrochen',
+            }
+        ))
+
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.item.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.CLARIFICATION)
+        self.assertTrue(self.item.damaged)
+        self.assertEqual(self.item.damage_amount, Decimal('12.50'))
+        self.assertIn('Zubehör beschädigt', self.item.return_condition)
+        self.assertIn('Bank gebrochen', self.item.return_condition)
+
+    def test_return_post_requires_guided_confirmations_and_signatures(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:return', args=[self.case.pk]), self._valid_post_data(
+            identity_confirmed='',
+            borrower_signature_data='',
+        ))
+
+        self.assertEqual(response.status_code, 200)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.HANDED_OVER)
         self.assertEqual(self.case.protocols.count(), 0)
