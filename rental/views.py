@@ -40,6 +40,7 @@ def _case_card(rental_case):
         'handover_document_send_url': reverse('rental:handover_document_send', args=[rental_case.pk]),
         'return_document_send_url': reverse('rental:return_document_send', args=[rental_case.pk]),
         'closing_document_send_url': reverse('rental:closing_document_send', args=[rental_case.pk]),
+        'donation_received_url': reverse('rental:donation_received', args=[rental_case.pk]),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -291,6 +292,37 @@ def return_case(request, pk):
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/return.html', context)
+
+
+@login_required
+def mark_donation_received(request, pk):
+    rental_case = get_object_or_404(RentalCase.objects.select_related('borrower'), pk=pk)
+    if request.method != 'POST':
+        return HttpResponse('Spendenverbuchung erfordert POST.', status=405)
+
+    if not rental_case.can_transition_to(RentalCase.Status.DONATION_RECEIVED):
+        messages.error(request, 'Für diesen Vorgang kann aktuell keine Spende verbucht werden.')
+        return redirect(_admin_change_url(rental_case))
+
+    amount_raw = request.POST.get('amount', '').strip().replace(',', '.')
+    try:
+        amount = Decimal(amount_raw) if amount_raw else rental_case.expected_donation
+    except InvalidOperation:
+        messages.error(request, 'Der Spendenbetrag ist ungültig.')
+        return redirect(_admin_change_url(rental_case))
+
+    if amount < 0:
+        messages.error(request, 'Der Spendenbetrag darf nicht negativ sein.')
+        return redirect(_admin_change_url(rental_case))
+
+    with transaction.atomic():
+        rental_case.received_donation = amount
+        rental_case.donation_received_at = timezone.now()
+        rental_case.transition_to(RentalCase.Status.DONATION_RECEIVED, save=False)
+        rental_case.save(update_fields=['status', 'received_donation', 'donation_received_at', 'closed_at', 'updated_at'])
+
+    messages.success(request, f'Spende über {amount} € wurde als erhalten verbucht.')
+    return redirect(_admin_change_url(rental_case))
 
 
 

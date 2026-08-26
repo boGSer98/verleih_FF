@@ -11,6 +11,14 @@
             <span class="pill">{{ card.case.reserved_from|date:"d.m. H:i" }} – {{ card.case.reserved_until|date:"d.m. H:i" }}</span>
           </div>
           <p>{{ card.item_summary }}</p>
+          {% if css_class == "donation" %}
+          <p>Erwartet: <strong>{{ card.case.expected_donation }} €</strong> · bisher erhalten: <strong>{{ card.case.received_donation }} €</strong></p>
+          <form class="inline-form" method="post" action="{{ card.donation_received_url }}">
+            {% csrf_token %}
+            <input type="hidden" name="amount" value="{{ card.case.expected_donation }}">
+            <button class="button" type="submit">Spende erhalten verbuchen</button>
+          </form>
+          {% endif %}
           {% if css_class == "pickup" %}
           <a class="button" href="{{ card.handover_url }}">Übergabe starten</a>
           {% elif css_class == "return" %}
