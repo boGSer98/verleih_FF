@@ -7,12 +7,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.http import FileResponse, HttpResponse
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Protocol, RentalCase
+from .models import Document, Protocol, RentalCase
+from .pdf import create_or_replace_document, document_filename
 
 
 def _admin_change_url(rental_case):
@@ -29,6 +31,7 @@ def _case_card(rental_case):
         'url': _admin_change_url(rental_case),
         'handover_url': reverse('rental:handover', args=[rental_case.pk]),
         'return_url': reverse('rental:return', args=[rental_case.pk]),
+        'reservation_document_url': reverse('rental:reservation_document', args=[rental_case.pk]),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -280,3 +283,32 @@ def return_case(request, pk):
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/return.html', context)
+
+
+
+@login_required
+def generate_reservation_document(request, pk):
+    rental_case = get_object_or_404(
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        pk=pk,
+    )
+    document = create_or_replace_document(
+        rental_case,
+        Document.DocumentType.RESERVATION,
+        request=request,
+    )
+    messages.success(request, 'Reservierungsbestätigung als PDF erzeugt.')
+    return redirect('rental:document_download', pk=document.pk)
+
+
+@login_required
+def document_download(request, pk):
+    document = get_object_or_404(Document.objects.select_related('rental_case'), pk=pk)
+    if not document.file:
+        return HttpResponse('Dokumentdatei fehlt.', status=404)
+    return FileResponse(
+        document.file.open('rb'),
+        content_type='application/pdf',
+        as_attachment=False,
+        filename=document_filename(document.rental_case, document.document_type),
+    )
