@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -25,6 +26,12 @@ class ProductCategory(TimeStampedModel):
 
 
 class Product(TimeStampedModel):
+    class Status(models.TextChoices):
+        AVAILABLE = 'available', 'Verfügbar'
+        MAINTENANCE = 'maintenance', 'Wartung'
+        DEFECTIVE = 'defective', 'Defekt'
+        RETIRED = 'retired', 'Ausgemustert'
+
     name = models.CharField('Name', max_length=160)
     category = models.ForeignKey(ProductCategory, verbose_name='Kategorie', on_delete=models.PROTECT, related_name='products')
     inventory_number = models.CharField('Inventarnummer', max_length=80, blank=True, unique=True, null=True)
@@ -32,8 +39,10 @@ class Product(TimeStampedModel):
     stock_quantity = models.PositiveIntegerField('Bestand', default=1)
     storage_location = models.CharField('Lagerort', max_length=160, blank=True)
     condition_note = models.TextField('Zustand/Bemerkung', blank=True)
+    status = models.CharField('Artikelstatus', max_length=24, choices=Status.choices, default=Status.AVAILABLE)
     suggested_donation = models.DecimalField('Spendenempfehlung', max_digits=8, decimal_places=2, default=0)
     deposit_amount = models.DecimalField('Kaution', max_digits=8, decimal_places=2, default=0)
+    replacement_value = models.DecimalField('Ersatzwert', max_digits=8, decimal_places=2, default=0)
     active = models.BooleanField('Aktiv', default=True)
 
     class Meta:
@@ -43,6 +52,27 @@ class Product(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def can_be_reserved(self):
+        return self.active and self.status == self.Status.AVAILABLE and self.stock_quantity > 0
+
+
+class ProductAccessory(TimeStampedModel):
+    product = models.ForeignKey(Product, verbose_name='Artikel', on_delete=models.CASCADE, related_name='accessories')
+    name = models.CharField('Zubehör/Bestandteil', max_length=160)
+    quantity = models.PositiveIntegerField('Menge', default=1)
+    required = models.BooleanField('Pflichtbestandteil', default=True)
+    notes = models.TextField('Bemerkungen', blank=True)
+
+    class Meta:
+        verbose_name = 'Zubehör/Bestandteil'
+        verbose_name_plural = 'Zubehör/Bestandteile'
+        ordering = ['product__name', 'name']
+        unique_together = [('product', 'name')]
+
+    def __str__(self):
+        return f'{self.quantity} × {self.name}'
 
 
 class Borrower(TimeStampedModel):
@@ -77,6 +107,19 @@ class RentalCase(TimeStampedModel):
         COMPLETED = 'completed', 'Abgeschlossen'
         CANCELLED = 'cancelled', 'Storniert'
 
+    TRANSITIONS = {
+        Status.REQUEST: {Status.RESERVED, Status.CANCELLED},
+        Status.RESERVED: {Status.PREPARED, Status.CANCELLED},
+        Status.PREPARED: {Status.HANDED_OVER, Status.CANCELLED},
+        Status.HANDED_OVER: {Status.DONATION_OPEN, Status.DONATION_RECEIVED, Status.RETURNED, Status.CLARIFICATION},
+        Status.DONATION_OPEN: {Status.DONATION_RECEIVED, Status.RETURNED, Status.CLARIFICATION},
+        Status.DONATION_RECEIVED: {Status.RETURNED, Status.COMPLETED, Status.CLARIFICATION},
+        Status.RETURNED: {Status.COMPLETED, Status.CLARIFICATION},
+        Status.CLARIFICATION: {Status.RETURNED, Status.DONATION_RECEIVED, Status.COMPLETED},
+        Status.COMPLETED: set(),
+        Status.CANCELLED: set(),
+    }
+
     number = models.CharField('Vorgangsnummer', max_length=40, unique=True, blank=True)
     borrower = models.ForeignKey(Borrower, verbose_name='Entleiher', on_delete=models.PROTECT, related_name='rental_cases')
     reserved_from = models.DateTimeField('Reserviert von')
@@ -96,6 +139,11 @@ class RentalCase(TimeStampedModel):
     def __str__(self):
         return self.number or f'Vorgang {self.pk or "neu"}'
 
+    def clean(self):
+        super().clean()
+        if self.reserved_from and self.reserved_until and self.reserved_until <= self.reserved_from:
+            raise ValidationError({'reserved_until': 'Das Ende der Reservierung muss nach dem Beginn liegen.'})
+
     def save(self, *args, **kwargs):
         if not self.number:
             year = timezone.localdate().year
@@ -109,6 +157,24 @@ class RentalCase(TimeStampedModel):
                     next_number = 1
             self.number = f'{prefix}{next_number:04d}'
         super().save(*args, **kwargs)
+
+    def allowed_next_statuses(self):
+        return self.TRANSITIONS.get(self.status, set())
+
+    def can_transition_to(self, target_status):
+        return target_status in self.allowed_next_statuses()
+
+    def transition_to(self, target_status, *, save=True):
+        if not self.can_transition_to(target_status):
+            current_label = self.Status(self.status).label
+            target_label = self.Status(target_status).label
+            raise ValidationError(f'Statuswechsel von „{current_label}“ nach „{target_label}“ ist nicht erlaubt.')
+        self.status = target_status
+        if target_status == self.Status.COMPLETED and not self.closed_at:
+            self.closed_at = timezone.now()
+        if save:
+            self.save(update_fields=['status', 'closed_at', 'updated_at'])
+        return self
 
 
 class RentalCaseItem(TimeStampedModel):
@@ -129,6 +195,13 @@ class RentalCaseItem(TimeStampedModel):
 
     def __str__(self):
         return f'{self.quantity} × {self.product}'
+
+    def clean(self):
+        super().clean()
+        if self.quantity < 1:
+            raise ValidationError({'quantity': 'Die Menge muss mindestens 1 betragen.'})
+        if self.product_id and not self.product.can_be_reserved:
+            raise ValidationError({'product': 'Dieser Artikel ist aktuell nicht für Reservierungen verfügbar.'})
 
 
 class Protocol(TimeStampedModel):
