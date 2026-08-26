@@ -41,9 +41,11 @@ docker compose exec web python manage.py createsuperuser
 Aufruf lokal:
 
 ```text
-http://localhost:8000/
-http://localhost:8000/admin/
+http://localhost:8100/
+http://localhost:8100/admin/
 ```
+
+Docker veröffentlicht den Host-Port `8100` auf den internen Container-Port `8000`.
 
 Die Startseite ist ein login-geschütztes, mobile-optimiertes Verleih-Dashboard für Tagesaufgaben.
 
@@ -65,7 +67,7 @@ Persistente Daten:
 
 ## Status
 
-Initiales Grundgerüst mit Datenmodell, Adminbereich, Docker Compose und Dokumentation.
+MVP-Grundprozess mit Datenmodell, Adminbereich, mobilem Dashboard, PDF-Dokumenten, Mailversand und Signaturerfassung.
 
 Die vollständige Umsetzungsplanung liegt unter [`docs/IMPLEMENTATION_STEPS.md`](docs/IMPLEMENTATION_STEPS.md).
 
