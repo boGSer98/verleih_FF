@@ -155,7 +155,7 @@ Abnahmekriterien:
 
 ## Phase 6 – PDF-Dokumente
 
-Status: erstes PDF-Basislayout und Reservierungsbestätigung mit Dateiablage umgesetzt.
+Status: PDF-Basislayout, Reservierungsbestätigung und Übergabeprotokoll mit Signaturen und Dateiablage umgesetzt.
 
 Ziel: Alle relevanten Dokumente werden automatisch als PDF erzeugt und am Vorgang gespeichert.
 

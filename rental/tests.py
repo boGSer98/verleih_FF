@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -443,11 +444,35 @@ class DocumentPdfTests(TestCase):
         )
         RentalCaseItem.objects.create(rental_case=self.case, product=self.product, quantity=1)
 
+    def _create_handover_protocol(self):
+        protocol = Protocol.objects.create(
+            rental_case=self.case,
+            protocol_type=Protocol.ProtocolType.HANDOVER,
+            performed_by=self.user,
+            notes='Übergabe vor Ort protokolliert.',
+        )
+        protocol.borrower_signature.save('borrower.png', ContentFile(b'borrower-signature-bytes' * 10), save=False)
+        protocol.club_signature.save('club.png', ContentFile(b'club-signature-bytes' * 10), save=False)
+        protocol.save(update_fields=['borrower_signature', 'club_signature', 'updated_at'])
+        self.case.items.update(handover_condition='sauber und vollständig', notes='Zubehör geprüft')
+        return protocol
+
     def test_reservation_pdf_is_generated_and_stored_as_document(self):
         document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
 
         self.assertEqual(document.document_type, Document.DocumentType.RESERVATION)
         self.assertTrue(document.file.name.startswith('documents/reservierungsbestaetigung-'))
+        document.file.open('rb')
+        self.assertEqual(document.file.read(4), b'%PDF')
+        document.file.close()
+
+    def test_handover_pdf_is_generated_with_latest_protocol_and_signatures(self):
+        self._create_handover_protocol()
+
+        document = create_or_replace_document(self.case, Document.DocumentType.HANDOVER)
+
+        self.assertEqual(document.document_type, Document.DocumentType.HANDOVER)
+        self.assertTrue(document.file.name.startswith('documents/uebergabeprotokoll-'))
         document.file.open('rb')
         self.assertEqual(document.file.read(4), b'%PDF')
         document.file.close()
@@ -464,6 +489,22 @@ class DocumentPdfTests(TestCase):
         response = self.client.get(reverse('rental:reservation_document', args=[self.case.pk]))
 
         document = self.case.documents.get(document_type=Document.DocumentType.RESERVATION)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
+
+    def test_handover_document_route_requires_login(self):
+        response = self.client.get(reverse('rental:handover_document', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_handover_document_route_creates_pdf_and_redirects_to_download(self):
+        self._create_handover_protocol()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:handover_document', args=[self.case.pk]))
+
+        document = self.case.documents.get(document_type=Document.DocumentType.HANDOVER)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
 
