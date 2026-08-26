@@ -11,6 +11,9 @@
             <span class="pill">{{ card.case.reserved_from|date:"d.m. H:i" }} – {{ card.case.reserved_until|date:"d.m. H:i" }}</span>
           </div>
           <p>{{ card.item_summary }}</p>
+          {% if css_class == "pickup" %}
+          <a class="button" href="{{ card.handover_url }}">Übergabe starten</a>
+          {% endif %}
           <a class="button secondary" href="{{ card.url }}">Vorgang öffnen</a>
         </div>
       {% endfor %}

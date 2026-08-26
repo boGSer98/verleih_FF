@@ -107,6 +107,8 @@ Abnahmekriterien:
 
 ## Phase 4 – Mobile Übergabe
 
+Status: erste mobile Übergabemaske mit Touch-Signaturen umgesetzt.
+
 Ziel: Übergabe kann vor Ort auf Tablet oder Smartphone durchgeführt werden.
 
 Aufgaben:
