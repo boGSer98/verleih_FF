@@ -1,5 +1,6 @@
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from .emailing import send_document_email
 from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
@@ -61,8 +62,19 @@ class DocumentInline(admin.TabularInline):
 
 @admin.register(RentalCase)
 class RentalCaseAdmin(admin.ModelAdmin):
-    list_display = ['number', 'borrower', 'reserved_from', 'reserved_until', 'status', 'expected_donation', 'received_donation', 'closed_at']
-    list_filter = ['status', 'reserved_from', 'reserved_until']
+    list_display = [
+        'number',
+        'borrower',
+        'reserved_from',
+        'reserved_until',
+        'status',
+        'donation_decision',
+        'donation_payment_method',
+        'expected_donation',
+        'received_donation',
+        'closed_at',
+    ]
+    list_filter = ['status', 'donation_decision', 'donation_payment_method', 'reserved_from', 'reserved_until']
     search_fields = ['number', 'borrower__name', 'borrower__email']
     readonly_fields = ['number', 'created_at', 'updated_at', 'closed_at']
     date_hierarchy = 'reserved_from'
@@ -86,7 +98,21 @@ class RentalCaseAdmin(admin.ModelAdmin):
         errors = []
         for rental_case in queryset:
             try:
-                rental_case.transition_to(target_status)
+                if target_status == RentalCase.Status.DONATION_RECEIVED:
+                    rental_case.transition_to(target_status, save=False)
+                    rental_case.received_donation = rental_case.expected_donation
+                    rental_case.donation_decision = RentalCase.DonationDecision.RECEIVED
+                    rental_case.donation_received_at = timezone.now()
+                    rental_case.save(update_fields=[
+                        'status',
+                        'received_donation',
+                        'donation_decision',
+                        'donation_received_at',
+                        'closed_at',
+                        'updated_at',
+                    ])
+                else:
+                    rental_case.transition_to(target_status)
                 changed += 1
             except ValidationError as exc:
                 errors.append(f'{rental_case}: {exc.message}')

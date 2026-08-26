@@ -207,24 +207,16 @@ Abnahmekriterien:
 
 ## Phase 8 – Spenden-/Zahlungsprozess
 
-Status: erster Dashboard-Button zum Verbuchen erhaltener Spenden mit Betrag, Eingangszeitpunkt und Statuswechsel umgesetzt.
+Status: Dashboard-Formular zum Dokumentieren von Spendenentscheidung, Zahlungsart, Betrag, Zahlungsnotiz, Eingangszeitpunkt und Statuswechsel umgesetzt.
 
 Ziel: Erwartete und erhaltene Spenden/Zahlungen sind nachvollziehbar.
 
 Aufgaben:
 
-1. Spendenstatus am Vorgang konkretisieren:
-   - offen
-   - erhalten
-   - teilweise erhalten
-   - verzichtet
-2. Zahlungsart ergänzen:
-   - bar
-   - Überweisung
-   - PayPal
-   - sonstig
-3. Zahlungsnotiz und Eingangsdatum speichern.
-4. Offene Spenden im Dashboard anzeigen. Status: umgesetzt mit Direktaktion „Spende erhalten verbuchen“.
+1. Spendenstatus am Vorgang konkretisieren. Status: umgesetzt mit offen, erhalten, teilweise erhalten und verzichtet.
+2. Zahlungsart ergänzen. Status: umgesetzt mit Bar, Überweisung, PayPal und Sonstig.
+3. Zahlungsnotiz und Eingangsdatum speichern. Status: umgesetzt.
+4. Offene Spenden im Dashboard anzeigen. Status: umgesetzt mit Formular „Spendenentscheidung speichern“.
 5. Abschluss blockieren oder warnen, wenn Spende offen ist.
 
 Abnahmekriterien:

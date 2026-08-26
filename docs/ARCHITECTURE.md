@@ -46,5 +46,5 @@ Storniert
 5. Mobile Rücknahme bauen. Status: Geführte Abschnittsmaske für Vorgangsprüfung, Artikelzustand, Zubehörprüfung, Schäden/Reinigung, Signaturen und Statuswechsel auf „Zurückgenommen“ oder „Klärung nötig“ umgesetzt.
 6. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen. Status: PDF-Basislayout, Reservierungsbestätigung, Übergabeprotokoll, Rücknahmeprotokoll und Abschlussübersicht mit Dokumentenablage/Download umgesetzt.
 7. SMTP-Mailversand mit PDF-Anhang implementieren. Status: erster manueller Versand bestehender bzw. direkt erzeugter Dokumente an Entleiher mit Dashboard-Mailbuttons und Status-/Fehlerablage umgesetzt.
-8. Spenden-/Zahlungsprozess konkretisieren. Status: offene Spenden sind im Dashboard sichtbar; erster Direktbutton verbucht erwartete Spende als erhalten, setzt Eingangszeitpunkt und Status.
+8. Spenden-/Zahlungsprozess konkretisieren. Status: offene Spenden sind im Dashboard sichtbar; Spendenentscheidung, Zahlungsart, Betrag, Notiz und Eingangszeitpunkt werden dokumentiert.
 9. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.

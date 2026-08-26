@@ -94,6 +94,8 @@ def dashboard(request):
         'status_choices': RentalCase.Status.choices,
         'expected_donation_total': donation_totals['expected'] or 0,
         'received_donation_total': donation_totals['received'] or 0,
+        'donation_decision_choices': RentalCase.DonationDecision.choices,
+        'donation_payment_method_choices': RentalCase.DonationPaymentMethod.choices,
         'admin_case_add_url': reverse('admin:rental_rentalcase_add'),
         'admin_case_list_url': reverse('admin:rental_rentalcase_changelist'),
         'admin_product_list_url': reverse('admin:rental_product_changelist'),
@@ -304,6 +306,16 @@ def mark_donation_received(request, pk):
         messages.error(request, 'Für diesen Vorgang kann aktuell keine Spende verbucht werden.')
         return redirect(_admin_change_url(rental_case))
 
+    decision = request.POST.get('decision') or RentalCase.DonationDecision.RECEIVED
+    if decision not in RentalCase.DonationDecision.values:
+        messages.error(request, 'Die Spendenentscheidung ist ungültig.')
+        return redirect(_admin_change_url(rental_case))
+
+    payment_method = request.POST.get('payment_method', '').strip()
+    if payment_method and payment_method not in RentalCase.DonationPaymentMethod.values:
+        messages.error(request, 'Die Zahlungsart ist ungültig.')
+        return redirect(_admin_change_url(rental_case))
+
     amount_raw = request.POST.get('amount', '').strip().replace(',', '.')
     try:
         amount = Decimal(amount_raw) if amount_raw else rental_case.expected_donation
@@ -311,17 +323,36 @@ def mark_donation_received(request, pk):
         messages.error(request, 'Der Spendenbetrag ist ungültig.')
         return redirect(_admin_change_url(rental_case))
 
+    if decision == RentalCase.DonationDecision.WAIVED:
+        amount = Decimal('0')
+        payment_method = ''
+
     if amount < 0:
         messages.error(request, 'Der Spendenbetrag darf nicht negativ sein.')
         return redirect(_admin_change_url(rental_case))
 
+    donation_note = request.POST.get('donation_note', '').strip()
+
     with transaction.atomic():
         rental_case.received_donation = amount
+        rental_case.donation_decision = decision
+        rental_case.donation_payment_method = payment_method
+        rental_case.donation_note = donation_note
         rental_case.donation_received_at = timezone.now()
         rental_case.transition_to(RentalCase.Status.DONATION_RECEIVED, save=False)
-        rental_case.save(update_fields=['status', 'received_donation', 'donation_received_at', 'closed_at', 'updated_at'])
+        rental_case.save(update_fields=[
+            'status',
+            'received_donation',
+            'donation_decision',
+            'donation_payment_method',
+            'donation_note',
+            'donation_received_at',
+            'closed_at',
+            'updated_at',
+        ])
 
-    messages.success(request, f'Spende über {amount} € wurde als erhalten verbucht.')
+    decision_label = RentalCase.DonationDecision(decision).label
+    messages.success(request, f'Spendenentscheidung „{decision_label}“ über {amount} € wurde dokumentiert.')
     return redirect(_admin_change_url(rental_case))
 
 
