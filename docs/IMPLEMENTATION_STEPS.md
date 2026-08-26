@@ -182,7 +182,7 @@ Abnahmekriterien:
 
 ## Phase 7 – Mailversand
 
-Status: erster manueller Dokumentenversand mit PDF-Anhang, Versandstatus und Fehlerablage umgesetzt.
+Status: erster manueller Dokumentenversand mit PDF-Anhang, Versandstatus, Fehlerablage und Dashboard-Mailbuttons umgesetzt.
 
 Ziel: Dokumente können direkt per E-Mail versendet werden.
 

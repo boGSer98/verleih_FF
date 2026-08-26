@@ -45,5 +45,5 @@ Storniert
 4. Mobile Übergabe bauen. Status: Touch-optimierte Übergabemaske mit Artikelzuständen, Protokollnotiz, zwei Signaturen und Statuswechsel auf „Übergeben“ umgesetzt.
 5. Mobile Rücknahme bauen. Status: Geführte Abschnittsmaske für Vorgangsprüfung, Artikelzustand, Zubehörprüfung, Schäden/Reinigung, Signaturen und Statuswechsel auf „Zurückgenommen“ oder „Klärung nötig“ umgesetzt.
 6. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen. Status: PDF-Basislayout, Reservierungsbestätigung, Übergabeprotokoll, Rücknahmeprotokoll und Abschlussübersicht mit Dokumentenablage/Download umgesetzt.
-7. SMTP-Mailversand mit PDF-Anhang implementieren. Status: erster manueller Versand bestehender Dokumente an Entleiher mit Status-/Fehlerablage umgesetzt.
+7. SMTP-Mailversand mit PDF-Anhang implementieren. Status: erster manueller Versand bestehender bzw. direkt erzeugter Dokumente an Entleiher mit Dashboard-Mailbuttons und Status-/Fehlerablage umgesetzt.
 8. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.
