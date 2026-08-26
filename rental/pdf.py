@@ -13,12 +13,14 @@ DOCUMENT_TYPE_TO_TEMPLATE = {
     Document.DocumentType.RESERVATION: 'rental/pdfs/reservation.html',
     Document.DocumentType.HANDOVER: 'rental/pdfs/handover.html',
     Document.DocumentType.RETURN: 'rental/pdfs/return.html',
+    Document.DocumentType.CLOSING: 'rental/pdfs/closing.html',
 }
 
 DOCUMENT_TYPE_TO_FILENAME = {
     Document.DocumentType.RESERVATION: 'reservierungsbestaetigung',
     Document.DocumentType.HANDOVER: 'uebergabeprotokoll',
     Document.DocumentType.RETURN: 'ruecknahmeprotokoll',
+    Document.DocumentType.CLOSING: 'abschlussuebersicht',
 }
 
 DOCUMENT_TYPE_TO_PROTOCOL_TYPE = {

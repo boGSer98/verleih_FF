@@ -509,6 +509,22 @@ class DocumentPdfTests(TestCase):
         self.assertEqual(document.file.read(4), b'%PDF')
         document.file.close()
 
+    def test_closing_pdf_is_generated_with_case_summary(self):
+        self._create_handover_protocol()
+        self._create_return_protocol()
+        self.case.status = RentalCase.Status.COMPLETED
+        self.case.closed_at = timezone.now()
+        self.case.received_donation = Decimal('20.00')
+        self.case.save(update_fields=['status', 'closed_at', 'received_donation', 'updated_at'])
+
+        document = create_or_replace_document(self.case, Document.DocumentType.CLOSING)
+
+        self.assertEqual(document.document_type, Document.DocumentType.CLOSING)
+        self.assertTrue(document.file.name.startswith('documents/abschlussuebersicht-'))
+        document.file.open('rb')
+        self.assertEqual(document.file.read(4), b'%PDF')
+        document.file.close()
+
     def test_reservation_document_route_requires_login(self):
         response = self.client.get(reverse('rental:reservation_document', args=[self.case.pk]))
 
@@ -553,6 +569,23 @@ class DocumentPdfTests(TestCase):
         response = self.client.get(reverse('rental:return_document', args=[self.case.pk]))
 
         document = self.case.documents.get(document_type=Document.DocumentType.RETURN)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
+
+    def test_closing_document_route_requires_login(self):
+        response = self.client.get(reverse('rental:closing_document', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_closing_document_route_creates_pdf_and_redirects_to_download(self):
+        self._create_handover_protocol()
+        self._create_return_protocol()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:closing_document', args=[self.case.pk]))
+
+        document = self.case.documents.get(document_type=Document.DocumentType.CLOSING)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
 
