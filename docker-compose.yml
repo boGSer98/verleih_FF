@@ -2,26 +2,35 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: verleih_ff
-      POSTGRES_USER: verleih_ff
-      POSTGRES_PASSWORD: verleih_ff
+      POSTGRES_DB: ${POSTGRES_DB:-verleih_ff}
+      POSTGRES_USER: ${POSTGRES_USER:-verleih_ff}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss gesetzt sein}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U verleih_ff -d verleih_ff"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
-    env_file:
-      - .env
+    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn verleih_ff.wsgi:application --bind 0.0.0.0:8000"
+    environment:
+      DEBUG: ${DEBUG:-0}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY muss gesetzt sein}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DATABASE_URL: postgres://${POSTGRES_USER:-verleih_ff}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-verleih_ff}
+      TIME_ZONE: ${TIME_ZONE:-Europe/Berlin}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-webmaster@localhost}
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
       - media_data:/app/media
       - static_data:/app/staticfiles
     depends_on:

@@ -68,3 +68,5 @@ Persistente Daten:
 Initiales Grundgerüst mit Datenmodell, Adminbereich, Docker Compose und Dokumentation.
 
 Die vollständige Umsetzungsplanung liegt unter [`docs/IMPLEMENTATION_STEPS.md`](docs/IMPLEMENTATION_STEPS.md).
+
+Die Portainer-Installationsanleitung liegt unter [`docs/PORTAINER_INSTALLATION.md`](docs/PORTAINER_INSTALLATION.md).
