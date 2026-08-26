@@ -75,6 +75,7 @@ class RentalCaseAdmin(admin.ModelAdmin):
         'mark_completed',
         'mark_cancelled',
         'generate_reservation_documents',
+        'generate_handover_documents',
     ]
 
     def _transition_selection(self, request, queryset, target_status):
@@ -126,6 +127,14 @@ class RentalCaseAdmin(admin.ModelAdmin):
             create_or_replace_document(rental_case, Document.DocumentType.RESERVATION, request=request)
             created += 1
         self.message_user(request, f'{created} Reservierungsbestätigung(en) erzeugt.', messages.SUCCESS)
+
+    @admin.action(description='Übergabeprotokoll als PDF erzeugen')
+    def generate_handover_documents(self, request, queryset):
+        created = 0
+        for rental_case in queryset.prefetch_related('items__product__accessories'):
+            create_or_replace_document(rental_case, Document.DocumentType.HANDOVER, request=request)
+            created += 1
+        self.message_user(request, f'{created} Übergabeprotokoll(e) erzeugt.', messages.SUCCESS)
 
 
 @admin.register(Protocol)
