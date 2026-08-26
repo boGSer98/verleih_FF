@@ -2,9 +2,10 @@ import base64
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -594,9 +595,55 @@ class DocumentPdfTests(TestCase):
         document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
 
         response = self.client.get(reverse('rental:document_download', args=[document.pk]))
-
         body = b''.join(response.streaming_content)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(response['Content-Disposition'].startswith('inline;'))
         self.assertEqual(body[:4], b'%PDF')
+
+    def test_document_send_requires_login(self):
+        document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        response = self.client.post(reverse('rental:document_send', args=[document.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_document_send_rejects_get(self):
+        self.client.force_login(self.user)
+        document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        response = self.client.get(reverse('rental:document_send', args=[document.pk]))
+
+        self.assertEqual(response.status_code, 405)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', DEFAULT_FROM_EMAIL='verein@example.org')
+    def test_document_send_emails_pdf_attachment_and_records_status(self):
+        self.client.force_login(self.user)
+        document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        response = self.client.post(reverse('rental:document_send', args=[document.pk]))
+
+        document.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('admin:rental_rentalcase_change', args=[self.case.pk]))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.borrower.email])
+        self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
+        self.assertEqual(document.sent_to, self.borrower.email)
+        self.assertIsNotNone(document.sent_at)
+        self.assertEqual(document.send_error, '')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_document_send_records_missing_recipient_error(self):
+        self.borrower.email = ''
+        self.borrower.save(update_fields=['email', 'updated_at'])
+        self.client.force_login(self.user)
+        document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        response = self.client.post(reverse('rental:document_send', args=[document.pk]))
+
+        document.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertIn('Keine E-Mail-Adresse', document.send_error)

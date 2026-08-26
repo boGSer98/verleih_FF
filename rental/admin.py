@@ -1,6 +1,7 @@
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 
+from .emailing import send_document_email
 from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
 from .pdf import create_or_replace_document
 
@@ -167,3 +168,23 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ['rental_case', 'document_type', 'sent_to', 'sent_at']
     list_filter = ['document_type', 'sent_at']
     search_fields = ['rental_case__number', 'sent_to']
+    actions = ['send_documents_by_email']
+
+    @admin.action(description='Dokumente per E-Mail an Entleiher senden')
+    def send_documents_by_email(self, request, queryset):
+        sent = 0
+        failed = 0
+        for document in queryset.select_related('rental_case__borrower'):
+            if send_document_email(document, request=request):
+                sent += 1
+            else:
+                failed += 1
+                self.message_user(
+                    request,
+                    f'{document}: Versand fehlgeschlagen: {document.send_error}',
+                    messages.ERROR,
+                )
+        if sent:
+            self.message_user(request, f'{sent} Dokument(e) per E-Mail versendet.', messages.SUCCESS)
+        if failed:
+            self.message_user(request, f'{failed} Dokument(e) konnten nicht versendet werden.', messages.WARNING)

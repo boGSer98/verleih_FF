@@ -1,0 +1,9 @@
+Hallo {{ borrower.name }},
+
+anbei senden wir das Dokument „{{ document.get_document_type_display }}“ zum Verleihvorgang {{ rental_case.number }}.
+
+Zeitraum:
+{{ rental_case.reserved_from|date:"d.m.Y H:i" }} – {{ rental_case.reserved_until|date:"d.m.Y H:i" }}
+
+Viele Grüße
+Förderverein
