@@ -223,6 +223,51 @@ class DashboardViewTests(TestCase):
         self.assertIn('min-height: 54px', content)
         self.assertIn(reverse('rental:reservation_document_send', args=[pickup.pk]), content)
         self.assertIn('Reservierung mailen', content)
+        self.assertIn(reverse('rental:donation_received', args=[donation.pk]), content)
+        self.assertIn('Spende erhalten verbuchen', content)
+
+    def test_donation_received_action_requires_login(self):
+        donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
+
+        response = self.client.post(reverse('rental:donation_received', args=[donation.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.DONATION_OPEN)
+
+    def test_donation_received_action_books_expected_amount(self):
+        donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:donation_received', args=[donation.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
+        self.assertEqual(donation.received_donation, Decimal('25.00'))
+        self.assertIsNotNone(donation.donation_received_at)
+
+    def test_donation_received_action_accepts_manual_amount(self):
+        donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
+        self.client.force_login(self.user)
+
+        self.client.post(reverse('rental:donation_received', args=[donation.pk]), {'amount': '30,50'})
+
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
+        self.assertEqual(donation.received_donation, Decimal('30.50'))
+
+    def test_donation_received_action_rejects_invalid_status(self):
+        donation = self._create_case(status=RentalCase.Status.RETURNED)
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:donation_received', args=[donation.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.RETURNED)
+        self.assertEqual(donation.received_donation, Decimal('10.00'))
 
 
 class HandoverViewTests(TestCase):

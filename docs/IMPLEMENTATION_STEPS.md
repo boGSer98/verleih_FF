@@ -207,6 +207,8 @@ Abnahmekriterien:
 
 ## Phase 8 – Spenden-/Zahlungsprozess
 
+Status: erster Dashboard-Button zum Verbuchen erhaltener Spenden mit Betrag, Eingangszeitpunkt und Statuswechsel umgesetzt.
+
 Ziel: Erwartete und erhaltene Spenden/Zahlungen sind nachvollziehbar.
 
 Aufgaben:
@@ -222,7 +224,7 @@ Aufgaben:
    - PayPal
    - sonstig
 3. Zahlungsnotiz und Eingangsdatum speichern.
-4. Offene Spenden im Dashboard anzeigen.
+4. Offene Spenden im Dashboard anzeigen. Status: umgesetzt mit Direktaktion „Spende erhalten verbuchen“.
 5. Abschluss blockieren oder warnen, wenn Spende offen ist.
 
 Abnahmekriterien:
