@@ -2,13 +2,13 @@
 
 Diese Anleitung beschreibt die Installation der Verleih-FF-Web-App als Portainer-Stack mit Django und PostgreSQL.
 
-> Stand der Anwendung: MVP in Entwicklung. Reservierung, Stammdaten, Verfügbarkeit und mobiles Prozess-Dashboard sind vorbereitet. PDF-Erzeugung, Mailversand und mobile Signatur folgen in späteren Phasen.
+> Stand der Anwendung: MVP in Entwicklung. Reservierung, Stammdaten, Verfügbarkeit, mobiles Prozess-Dashboard, PDF-Erzeugung, Mailversand und mobile Signaturen sind vorbereitet.
 
 ## 1. Voraussetzungen
 
 - Portainer ist eingerichtet und kann Docker-Stacks/Compose starten.
 - Der Portainer-Host hat Internetzugriff zu GitHub und Docker Hub.
-- Ein freier HTTP-Port ist verfügbar, z. B. `8000`.
+- Ein freier HTTP-Port ist verfügbar. Die Beispielkonfiguration veröffentlicht die App auf Host-Port `8100`.
 - Für den späteren Produktivbetrieb sollte ein Reverse Proxy mit HTTPS vorhanden sein.
 
 ## 2. Repository
@@ -125,16 +125,18 @@ Beim Superuser werden Benutzername, E-Mail und Passwort abgefragt.
 Wenn der Stack-Port unverändert ist:
 
 ```text
-http://<host-oder-ip>:8000/
+http://<host-oder-ip>:8100/
 ```
 
 Adminbereich:
 
 ```text
-http://<host-oder-ip>:8000/admin/
+http://<host-oder-ip>:8100/admin/
 ```
 
 Die Startseite `/` ist login-geschützt und leitet auf den Admin-Login weiter.
+
+Die Docker-Portzuordnung lautet dabei bewusst `8100:8000`: außen ist Host-Port `8100` erreichbar, im Container hört Gunicorn weiterhin auf Port `8000`.
 
 ## 8. Reverse Proxy / HTTPS
 
@@ -144,7 +146,8 @@ Empfehlung:
 
 - interner Container-Port: `8000`
 - externer Reverse Proxy: HTTPS auf Port `443`
-- Ziel im Proxy: `http://<docker-host>:8000`
+- Ziel im Proxy bei direktem Container-/Docker-Netzwerkzugriff: `http://<web-container>:8000`
+- Ziel im Proxy bei Zugriff über den Docker-Host-Port: `http://<docker-host>:8100`
 
 Dann `ALLOWED_HOSTS` auf die echte Domain setzen, z. B.:
 
@@ -195,8 +198,8 @@ Prüfen:
 
 Prüfen:
 
-- ist Port `8000` am Host frei?
-- wurde der Stack-Port korrekt veröffentlicht?
+- ist Port `8100` am Host frei und erreichbar?
+- wurde der Stack-Port korrekt als `8100:8000` veröffentlicht?
 - steht Hostname/IP in `ALLOWED_HOSTS`?
 
 ### Mailversand funktioniert später nicht
