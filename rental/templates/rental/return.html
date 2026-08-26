@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mobile Rücknahme {{ rental_case.number }}</title>
+  <style>
+    :root { --bg:#f4f6f8; --card:#fff; --text:#18212f; --muted:#5d6b7c; --primary:#1955a6; --danger:#a01919; --warn:#a65f00; --ok:#1b7f3a; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); }
+    header { padding:1rem; background:linear-gradient(135deg,#163f7a,#1d6fba); color:#fff; }
+    header h1 { margin:0 0 .25rem; font-size:clamp(1.35rem,5vw,2rem); }
+    header p { margin:.2rem 0; opacity:.92; }
+    main { width:min(900px,100%); margin:0 auto; padding:1rem; }
+    .card { background:var(--card); border-radius:18px; padding:1rem; margin-bottom:1rem; box-shadow:0 2px 10px rgb(12 31 56 / .08); }
+    .step { border-top:5px solid var(--primary); }
+    .step[disabled] { opacity:.55; }
+    .step h2 { margin-top:0; }
+    .step-number { display:inline-flex; width:2rem; height:2rem; border-radius:999px; align-items:center; justify-content:center; background:var(--primary); color:#fff; font-weight:800; margin-right:.35rem; }
+    .grid { display:grid; gap:.8rem; }
+    .item-card { border:1px solid #dde5ee; border-radius:14px; padding:.85rem; }
+    label { display:block; font-weight:700; margin:.6rem 0 .3rem; }
+    input[type="text"], input[type="number"], textarea { width:100%; min-height:48px; border:1px solid #bcc8d6; border-radius:12px; padding:.75rem; font:inherit; }
+    textarea { min-height:90px; resize:vertical; }
+    .choice-grid { display:grid; gap:.55rem; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); margin:.6rem 0; }
+    .choice { min-height:54px; display:flex; align-items:center; gap:.5rem; border:1px solid #ccd7e3; border-radius:14px; padding:.75rem; background:#fff; font-weight:700; }
+    .choice input { width:1.25rem; height:1.25rem; }
+    .choice.ok { border-color:#b7dec5; }
+    .choice.warn { border-color:#f0c782; }
+    .choice.danger { border-color:#eba6a6; }
+    .accessories { margin:.6rem 0; padding:.7rem; border-radius:12px; background:#f2f6fb; }
+    canvas { width:100%; height:180px; border:2px dashed #9dafc4; border-radius:14px; background:#fff; touch-action:none; display:block; }
+    .button-row { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    button, .button { min-height:54px; border:0; border-radius:999px; padding:.85rem 1rem; font-weight:800; font:inherit; text-decoration:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .primary { background:var(--primary); color:white; }
+    .secondary { background:#e7eef8; color:var(--primary); }
+    .danger { background:#f9e7e7; color:var(--danger); }
+    .messages { list-style:none; padding:0; margin:0 0 1rem; }
+    .messages li { padding:.75rem; border-radius:12px; background:#fff3cd; margin-bottom:.5rem; }
+    .muted { color:var(--muted); }
+    .hint { border-left:4px solid var(--warn); padding:.55rem .75rem; background:#fff8ec; border-radius:10px; }
+    @media (max-width:640px) { main { padding:.75rem; } .card { border-radius:16px; padding:.9rem; } .button-row, .choice-grid { grid-template-columns:1fr; } canvas { height:210px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Geführte Rücknahme {{ rental_case.number }}</h1>
+    <p>{{ rental_case.borrower.name }}{% if rental_case.borrower.organization %} · {{ rental_case.borrower.organization }}{% endif %}</p>
+    <p>{{ rental_case.reserved_from|date:"d.m.Y H:i" }} – {{ rental_case.reserved_until|date:"d.m.Y H:i" }}</p>
+  </header>
+  <main>
+    {% if messages %}<ul class="messages">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>{% endif %}
+    <form method="post" id="return-form">
+      {% csrf_token %}
+
+      <fieldset class="card step" data-step="1">
+        <h2><span class="step-number">1</span>Entleiher und Vorgang geprüft</h2>
+        <p class="muted">Bitte bestätige zuerst, dass der richtige Vorgang und der Entleiher vor dir stehen.</p>
+        <label class="choice ok"><input type="checkbox" name="identity_confirmed" value="yes" data-continue> Vorgang und Entleiher stimmen.</label>
+      </fieldset>
+
+      <fieldset class="card step" data-step="2" disabled>
+        <h2><span class="step-number">2</span>Artikel, Schäden und Zubehör prüfen</h2>
+        <p class="hint">Jede Position muss einzeln bestätigt werden. Bei Schäden, Fehlteilen oder Reinigungsbedarf wird der Vorgang automatisch auf „Klärung nötig“ gesetzt.</p>
+        <div class="grid">
+          {% for item in rental_case.items.all %}
+            <article class="item-card" data-item-card>
+              <h3>{{ item.quantity }} × {{ item.product.name }}</h3>
+              <p class="muted">Zustand bei Übergabe: {{ item.handover_condition|default:"nicht erfasst" }}</p>
+              {% if item.product.accessories.all %}
+                <div class="accessories">
+                  <strong>Zubehör laut Stammdaten:</strong>
+                  <ul>
+                    {% for accessory in item.product.accessories.all %}
+                      <li>{{ accessory.quantity }} × {{ accessory.name }}{% if accessory.required %} · Pflicht{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% else %}
+                <p class="muted">Kein Zubehör in den Stammdaten erfasst.</p>
+              {% endif %}
+
+              <label>Artikelzustand</label>
+              <div class="choice-grid">
+                <label class="choice ok"><input type="radio" name="return_status_{{ item.pk }}" value="ok" required> vollständig / in Ordnung</label>
+                <label class="choice danger"><input type="radio" name="return_status_{{ item.pk }}" value="missing" required> fehlt</label>
+                <label class="choice danger"><input type="radio" name="return_status_{{ item.pk }}" value="damaged" required> beschädigt</label>
+                <label class="choice warn"><input type="radio" name="return_status_{{ item.pk }}" value="cleaning" required> Reinigungsbedarf</label>
+              </div>
+
+              <label>Zubehörprüfung</label>
+              <div class="choice-grid">
+                <label class="choice ok"><input type="radio" name="accessory_status_{{ item.pk }}" value="complete" required> vollständig / in Ordnung</label>
+                <label class="choice danger"><input type="radio" name="accessory_status_{{ item.pk }}" value="missing" required> Zubehör fehlt</label>
+                <label class="choice danger"><input type="radio" name="accessory_status_{{ item.pk }}" value="damaged" required> Zubehör beschädigt</label>
+                <label class="choice"><input type="radio" name="accessory_status_{{ item.pk }}" value="none" required> kein Zubehör relevant</label>
+              </div>
+
+              <label for="damage_amount_{{ item.pk }}">Schaden-/Klärbetrag optional</label>
+              <input id="damage_amount_{{ item.pk }}" name="damage_amount_{{ item.pk }}" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+
+              <label for="return_note_{{ item.pk }}">Bemerkung zur Rücknahme</label>
+              <textarea id="return_note_{{ item.pk }}" name="return_note_{{ item.pk }}" placeholder="Was fehlt? Was ist beschädigt? Reinigungsbedarf?"></textarea>
+            </article>
+          {% empty %}
+            <p class="muted">Noch keine Artikelpositionen erfasst.</p>
+          {% endfor %}
+        </div>
+        <label class="choice ok"><input type="checkbox" name="all_items_checked" value="yes" data-continue> Alle Artikel, Schäden und Zubehöre wurden geprüft.</label>
+      </fieldset>
+
+      <fieldset class="card step" data-step="3" disabled>
+        <h2><span class="step-number">3</span>Protokollnotiz</h2>
+        <textarea name="notes" placeholder="Zusammenfassung, offene Punkte oder Spendenhinweise"></textarea>
+        <label class="choice ok"><input type="checkbox" data-continue> Protokollnotiz geprüft.</label>
+      </fieldset>
+
+      <fieldset class="card step" data-step="4" disabled>
+        <h2><span class="step-number">4</span>Unterschrift Entleiher</h2>
+        <canvas data-signature="borrower_signature_data" aria-label="Unterschriftsfeld Entleiher"></canvas>
+        <input type="hidden" name="borrower_signature_data" id="borrower_signature_data">
+        <div class="button-row"><button type="button" class="secondary" data-clear="borrower_signature_data">Unterschrift löschen</button></div>
+        <label class="choice ok"><input type="checkbox" data-continue> Entleiher hat unterschrieben.</label>
+      </fieldset>
+
+      <fieldset class="card step" data-step="5" disabled>
+        <h2><span class="step-number">5</span>Unterschrift Verein / Helfer</h2>
+        <canvas data-signature="club_signature_data" aria-label="Unterschriftsfeld Verein"></canvas>
+        <input type="hidden" name="club_signature_data" id="club_signature_data">
+        <div class="button-row"><button type="button" class="secondary" data-clear="club_signature_data">Unterschrift löschen</button></div>
+      </fieldset>
+
+      <div class="button-row">
+        <button type="submit" class="primary">Rücknahme speichern</button>
+        <a class="button secondary" href="{{ dashboard_url }}">Zur Übersicht</a>
+        <a class="button danger" href="{{ admin_case_url }}">Abbrechen</a>
+      </div>
+    </form>
+  </main>
+  <script>
+    function enableNextStep(currentStep) {
+      const nextStep = document.querySelector(`[data-step="${Number(currentStep.dataset.step) + 1}"]`);
+      if (nextStep) nextStep.disabled = false;
+    }
+    document.querySelectorAll('[data-continue]').forEach(input => {
+      input.addEventListener('change', event => {
+        if (event.target.checked) enableNextStep(event.target.closest('[data-step]'));
+      });
+    });
+    function setupSignature(canvas) {
+      const input = document.getElementById(canvas.dataset.signature);
+      const ctx = canvas.getContext('2d');
+      let drawing = false;
+      let hasInk = false;
+      function resize() {
+        const ratio = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+        ctx.scale(ratio, ratio);
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#111827';
+      }
+      function point(event) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      }
+      resize();
+      canvas.addEventListener('pointerdown', event => { drawing = true; hasInk = true; canvas.setPointerCapture(event.pointerId); const p = point(event); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+      canvas.addEventListener('pointermove', event => { if (!drawing) return; const p = point(event); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+      canvas.addEventListener('pointerup', () => { drawing = false; input.value = hasInk ? canvas.toDataURL('image/png') : ''; });
+      canvas.addEventListener('pointercancel', () => { drawing = false; });
+      document.querySelector(`[data-clear="${canvas.dataset.signature}"]`).addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); input.value = ''; hasInk = false; });
+    }
+    document.querySelectorAll('canvas[data-signature]').forEach(setupSignature);
+  </script>
+</body>
+</html>

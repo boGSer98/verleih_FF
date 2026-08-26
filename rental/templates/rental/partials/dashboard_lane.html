@@ -13,6 +13,8 @@
           <p>{{ card.item_summary }}</p>
           {% if css_class == "pickup" %}
           <a class="button" href="{{ card.handover_url }}">Übergabe starten</a>
+          {% elif css_class == "return" %}
+          <a class="button" href="{{ card.return_url }}">Rücknahme starten</a>
           {% endif %}
           <a class="button secondary" href="{{ card.url }}">Vorgang öffnen</a>
         </div>

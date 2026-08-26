@@ -1,6 +1,7 @@
 import base64
 import binascii
 import uuid
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -27,6 +28,7 @@ def _case_card(rental_case):
         'case': rental_case,
         'url': _admin_change_url(rental_case),
         'handover_url': reverse('rental:handover', args=[rental_case.pk]),
+        'return_url': reverse('rental:return', args=[rental_case.pk]),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -154,3 +156,127 @@ def handover(request, pk):
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/handover.html', context)
+
+
+
+def _validate_required_choice(post_data, field_name, label, allowed_values):
+    value = post_data.get(field_name, '')
+    if value not in allowed_values:
+        raise ValueError(f'{label} muss bestätigt werden.')
+    return value
+
+
+@login_required
+def return_case(request, pk):
+    rental_case = get_object_or_404(
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        pk=pk,
+    )
+    allowed_statuses = {
+        RentalCase.Status.HANDED_OVER,
+        RentalCase.Status.DONATION_OPEN,
+        RentalCase.Status.DONATION_RECEIVED,
+    }
+    if rental_case.status not in allowed_statuses:
+        messages.error(request, 'Die mobile Rücknahme ist nur für übergebene Vorgänge möglich.')
+        return redirect(_admin_change_url(rental_case))
+
+    if request.method == 'POST':
+        error = None
+        has_issue = False
+        try:
+            _validate_required_choice(
+                request.POST,
+                'identity_confirmed',
+                'Abschnitt „Entleiher und Vorgang geprüft“',
+                {'yes'},
+            )
+            _validate_required_choice(
+                request.POST,
+                'all_items_checked',
+                'Abschnitt „Alle Artikel einzeln geprüft“',
+                {'yes'},
+            )
+            borrower_signature = _decode_signature(request.POST.get('borrower_signature_data', ''), 'Unterschrift Entleiher')
+            club_signature = _decode_signature(request.POST.get('club_signature_data', ''), 'Unterschrift Verein')
+        except ValueError as exc:
+            error = str(exc)
+
+        item_results = []
+        if not error:
+            try:
+                for item in rental_case.items.all():
+                    return_status = _validate_required_choice(
+                        request.POST,
+                        f'return_status_{item.pk}',
+                        f'Rückgabestatus für {item.product.name}',
+                        {'ok', 'missing', 'damaged', 'cleaning'},
+                    )
+                    accessory_status = _validate_required_choice(
+                        request.POST,
+                        f'accessory_status_{item.pk}',
+                        f'Zubehörprüfung für {item.product.name}',
+                        {'complete', 'missing', 'damaged', 'none'},
+                    )
+                    damage_amount_raw = request.POST.get(f'damage_amount_{item.pk}', '').strip().replace(',', '.')
+                    try:
+                        damage_amount = Decimal(damage_amount_raw or '0')
+                    except InvalidOperation as exc:
+                        raise ValueError(f'Schaden-/Klärbetrag für {item.product.name} ist ungültig.') from exc
+                    item_results.append((item, return_status, accessory_status, damage_amount))
+                    if return_status != 'ok' or accessory_status in {'missing', 'damaged'}:
+                        has_issue = True
+            except ValueError as exc:
+                error = str(exc)
+
+        if not error:
+            with transaction.atomic():
+                for item, return_status, accessory_status, damage_amount in item_results:
+                    status_labels = {
+                        'ok': 'Artikel vollständig und in Ordnung zurückgegeben.',
+                        'missing': 'Artikel fehlt bei Rücknahme.',
+                        'damaged': 'Artikel beschädigt zurückgegeben.',
+                        'cleaning': 'Artikel mit Reinigungsbedarf zurückgegeben.',
+                    }
+                    accessory_labels = {
+                        'complete': 'Zubehör vollständig und in Ordnung.',
+                        'missing': 'Zubehör fehlt oder ist unvollständig.',
+                        'damaged': 'Zubehör beschädigt.',
+                        'none': 'Kein Zubehör zu prüfen.',
+                    }
+                    detail_note = request.POST.get(f'return_note_{item.pk}', '').strip()
+                    condition_parts = [status_labels[return_status], accessory_labels[accessory_status]]
+                    if detail_note:
+                        condition_parts.append(detail_note)
+                    item.return_condition = '\n'.join(condition_parts)
+                    item.missing = return_status == 'missing' or accessory_status == 'missing'
+                    item.damaged = return_status == 'damaged' or accessory_status == 'damaged'
+                    item.damage_amount = damage_amount
+                    item.save(update_fields=['return_condition', 'missing', 'damaged', 'damage_amount', 'updated_at'])
+
+                protocol = Protocol.objects.create(
+                    rental_case=rental_case,
+                    protocol_type=Protocol.ProtocolType.RETURN,
+                    performed_by=request.user,
+                    notes=request.POST.get('notes', '').strip(),
+                )
+                protocol.borrower_signature.save(borrower_signature.name, borrower_signature, save=False)
+                protocol.club_signature.save(club_signature.name, club_signature, save=False)
+                protocol.save(update_fields=['borrower_signature', 'club_signature', 'updated_at'])
+
+                target_status = RentalCase.Status.CLARIFICATION if has_issue else RentalCase.Status.RETURNED
+                rental_case.transition_to(target_status)
+
+            if has_issue:
+                messages.warning(request, 'Rücknahme gespeichert. Wegen Fehlteilen, Schäden oder Reinigungsbedarf ist Klärung nötig.')
+            else:
+                messages.success(request, 'Rücknahmeprotokoll gespeichert und Vorgang auf „Zurückgenommen“ gesetzt.')
+            return redirect(_admin_change_url(rental_case))
+        messages.error(request, error)
+
+    context = {
+        'rental_case': rental_case,
+        'admin_case_url': _admin_change_url(rental_case),
+        'dashboard_url': reverse('rental:dashboard'),
+    }
+    return render(request, 'rental/return.html', context)
