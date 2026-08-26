@@ -34,6 +34,7 @@ def _case_card(rental_case):
         'reservation_document_url': reverse('rental:reservation_document', args=[rental_case.pk]),
         'handover_document_url': reverse('rental:handover_document', args=[rental_case.pk]),
         'return_document_url': reverse('rental:return_document', args=[rental_case.pk]),
+        'closing_document_url': reverse('rental:closing_document', args=[rental_case.pk]),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -330,6 +331,21 @@ def generate_return_document(request, pk):
         request=request,
     )
     messages.success(request, 'Rücknahmeprotokoll als PDF erzeugt.')
+    return redirect('rental:document_download', pk=document.pk)
+
+
+@login_required
+def generate_closing_document(request, pk):
+    rental_case = get_object_or_404(
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        pk=pk,
+    )
+    document = create_or_replace_document(
+        rental_case,
+        Document.DocumentType.CLOSING,
+        request=request,
+    )
+    messages.success(request, 'Abschlussübersicht als PDF erzeugt.')
     return redirect('rental:document_download', pk=document.pk)
 
 
