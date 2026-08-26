@@ -128,6 +128,18 @@ class RentalCase(TimeStampedModel):
         COMPLETED = 'completed', 'Abgeschlossen'
         CANCELLED = 'cancelled', 'Storniert'
 
+    class DonationDecision(models.TextChoices):
+        OPEN = 'open', 'Offen'
+        RECEIVED = 'received', 'Erhalten'
+        PARTIAL = 'partial', 'Teilweise erhalten'
+        WAIVED = 'waived', 'Verzichtet'
+
+    class DonationPaymentMethod(models.TextChoices):
+        CASH = 'cash', 'Bar'
+        BANK_TRANSFER = 'bank_transfer', 'Überweisung'
+        PAYPAL = 'paypal', 'PayPal'
+        OTHER = 'other', 'Sonstig'
+
     TRANSITIONS = {
         Status.REQUEST: {Status.RESERVED, Status.CANCELLED},
         Status.RESERVED: {Status.PREPARED, Status.CANCELLED},
@@ -155,7 +167,20 @@ class RentalCase(TimeStampedModel):
     status = models.CharField('Status', max_length=32, choices=Status.choices, default=Status.REQUEST)
     expected_donation = models.DecimalField('Erwartete Spende', max_digits=8, decimal_places=2, default=0)
     received_donation = models.DecimalField('Erhaltene Spende', max_digits=8, decimal_places=2, default=0)
+    donation_decision = models.CharField(
+        'Spendenentscheidung',
+        max_length=16,
+        choices=DonationDecision.choices,
+        default=DonationDecision.OPEN,
+    )
+    donation_payment_method = models.CharField(
+        'Zahlungsart',
+        max_length=24,
+        choices=DonationPaymentMethod.choices,
+        blank=True,
+    )
     donation_received_at = models.DateTimeField('Spende erhalten am', null=True, blank=True)
+    donation_note = models.TextField('Zahlungsnotiz', blank=True)
     notes = models.TextField('Bemerkungen', blank=True)
     closed_at = models.DateTimeField('Abgeschlossen am', null=True, blank=True)
 

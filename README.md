@@ -67,7 +67,7 @@ Persistente Daten:
 
 ## Status
 
-MVP-Grundprozess mit Datenmodell, Adminbereich, mobilem Dashboard, PDF-Dokumenten, Mailversand und Signaturerfassung.
+MVP-Grundprozess mit Datenmodell, Adminbereich, mobilem Dashboard, PDF-Dokumenten, Mailversand, Signaturerfassung und dokumentierter Spendenentscheidung.
 
 Die vollständige Umsetzungsplanung liegt unter [`docs/IMPLEMENTATION_STEPS.md`](docs/IMPLEMENTATION_STEPS.md).
 

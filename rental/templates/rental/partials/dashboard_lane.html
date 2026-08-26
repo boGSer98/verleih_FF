@@ -13,10 +13,36 @@
           <p>{{ card.item_summary }}</p>
           {% if css_class == "donation" %}
           <p>Erwartet: <strong>{{ card.case.expected_donation }} €</strong> · bisher erhalten: <strong>{{ card.case.received_donation }} €</strong></p>
-          <form class="inline-form" method="post" action="{{ card.donation_received_url }}">
+          <form class="donation-form" method="post" action="{{ card.donation_received_url }}">
             {% csrf_token %}
-            <input type="hidden" name="amount" value="{{ card.case.expected_donation }}">
-            <button class="button" type="submit">Spende erhalten verbuchen</button>
+            <div class="form-grid">
+              <label class="field">
+                Betrag
+                <input name="amount" inputmode="decimal" value="{{ card.case.expected_donation }}">
+              </label>
+              <label class="field">
+                Entscheidung
+                <select name="decision">
+                  {% for value, label in donation_decision_choices %}
+                    {% if value != "open" %}<option value="{{ value }}">{{ label }}</option>{% endif %}
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="field">
+                Zahlungsart
+                <select name="payment_method">
+                  <option value="">Nicht erfasst</option>
+                  {% for value, label in donation_payment_method_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+            <label class="field">
+              Zahlungsnotiz
+              <textarea name="donation_note" placeholder="z. B. bar bei Abholung, überwiesen am ..."></textarea>
+            </label>
+            <button class="button" type="submit">Spendenentscheidung speichern</button>
           </form>
           {% endif %}
           {% if css_class == "pickup" %}

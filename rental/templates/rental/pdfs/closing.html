@@ -87,8 +87,18 @@
   <table class="amounts">
     <tr><th>Erwartete Spende</th><td>{{ rental_case.expected_donation }} €</td></tr>
     <tr><th>Erhaltene Spende</th><td>{{ rental_case.received_donation }} €</td></tr>
+    <tr><th>Spendenentscheidung</th><td>{{ rental_case.get_donation_decision_display }}</td></tr>
+    <tr><th>Zahlungsart</th><td>{{ rental_case.get_donation_payment_method_display|default:"Nicht erfasst" }}</td></tr>
+    <tr><th>Eingang</th><td>{% if rental_case.donation_received_at %}{{ rental_case.donation_received_at|date:"d.m.Y H:i" }}{% else %}Nicht erfasst{% endif %}</td></tr>
     <tr><th>Status</th><td>{{ rental_case.get_status_display }}</td></tr>
   </table>
+
+  {% if rental_case.donation_note %}
+    <div class="note">
+      <strong>Zahlungsnotiz:</strong><br>
+      {{ rental_case.donation_note|linebreaksbr }}
+    </div>
+  {% endif %}
 
   {% if rental_case.notes %}
     <div class="note">

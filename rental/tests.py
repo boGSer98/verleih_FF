@@ -224,7 +224,12 @@ class DashboardViewTests(TestCase):
         self.assertIn(reverse('rental:reservation_document_send', args=[pickup.pk]), content)
         self.assertIn('Reservierung mailen', content)
         self.assertIn(reverse('rental:donation_received', args=[donation.pk]), content)
-        self.assertIn('Spende erhalten verbuchen', content)
+        self.assertIn('Spendenentscheidung speichern', content)
+        self.assertIn('name="decision"', content)
+        self.assertIn('Teilweise erhalten', content)
+        self.assertIn('name="payment_method"', content)
+        self.assertIn('Überweisung', content)
+        self.assertIn('name="donation_note"', content)
 
     def test_donation_received_action_requires_login(self):
         donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
@@ -246,17 +251,65 @@ class DashboardViewTests(TestCase):
         donation.refresh_from_db()
         self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
         self.assertEqual(donation.received_donation, Decimal('25.00'))
+        self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.RECEIVED)
+        self.assertEqual(donation.donation_payment_method, '')
         self.assertIsNotNone(donation.donation_received_at)
 
     def test_donation_received_action_accepts_manual_amount(self):
         donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
         self.client.force_login(self.user)
 
-        self.client.post(reverse('rental:donation_received', args=[donation.pk]), {'amount': '30,50'})
+        self.client.post(reverse('rental:donation_received', args=[donation.pk]), {
+            'amount': '30,50',
+            'decision': RentalCase.DonationDecision.PARTIAL,
+            'payment_method': RentalCase.DonationPaymentMethod.BANK_TRANSFER,
+            'donation_note': 'Teilbetrag vorab überwiesen.',
+        })
 
         donation.refresh_from_db()
         self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
         self.assertEqual(donation.received_donation, Decimal('30.50'))
+        self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.PARTIAL)
+        self.assertEqual(donation.donation_payment_method, RentalCase.DonationPaymentMethod.BANK_TRANSFER)
+        self.assertEqual(donation.donation_note, 'Teilbetrag vorab überwiesen.')
+
+    def test_donation_received_action_documents_waiver_without_amount_or_payment_method(self):
+        donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
+        self.client.force_login(self.user)
+
+        self.client.post(reverse('rental:donation_received', args=[donation.pk]), {
+            'amount': '25,00',
+            'decision': RentalCase.DonationDecision.WAIVED,
+            'payment_method': RentalCase.DonationPaymentMethod.CASH,
+            'donation_note': 'Vorstand verzichtet auf Spende.',
+        })
+
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
+        self.assertEqual(donation.received_donation, Decimal('0.00'))
+        self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.WAIVED)
+        self.assertEqual(donation.donation_payment_method, '')
+        self.assertEqual(donation.donation_note, 'Vorstand verzichtet auf Spende.')
+
+    def test_donation_received_action_rejects_invalid_decision_and_payment_method(self):
+        donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
+        self.client.force_login(self.user)
+
+        self.client.post(reverse('rental:donation_received', args=[donation.pk]), {
+            'decision': 'unknown',
+            'payment_method': RentalCase.DonationPaymentMethod.CASH,
+        })
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.DONATION_OPEN)
+        self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.OPEN)
+
+        self.client.post(reverse('rental:donation_received', args=[donation.pk]), {
+            'decision': RentalCase.DonationDecision.RECEIVED,
+            'payment_method': 'crypto',
+        })
+        donation.refresh_from_db()
+        self.assertEqual(donation.status, RentalCase.Status.DONATION_OPEN)
+        self.assertEqual(donation.donation_payment_method, '')
 
     def test_donation_received_action_rejects_invalid_status(self):
         donation = self._create_case(status=RentalCase.Status.RETURNED)
