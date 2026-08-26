@@ -12,15 +12,18 @@ from .models import Document, Protocol
 DOCUMENT_TYPE_TO_TEMPLATE = {
     Document.DocumentType.RESERVATION: 'rental/pdfs/reservation.html',
     Document.DocumentType.HANDOVER: 'rental/pdfs/handover.html',
+    Document.DocumentType.RETURN: 'rental/pdfs/return.html',
 }
 
 DOCUMENT_TYPE_TO_FILENAME = {
     Document.DocumentType.RESERVATION: 'reservierungsbestaetigung',
     Document.DocumentType.HANDOVER: 'uebergabeprotokoll',
+    Document.DocumentType.RETURN: 'ruecknahmeprotokoll',
 }
 
 DOCUMENT_TYPE_TO_PROTOCOL_TYPE = {
     Document.DocumentType.HANDOVER: Protocol.ProtocolType.HANDOVER,
+    Document.DocumentType.RETURN: Protocol.ProtocolType.RETURN,
 }
 
 

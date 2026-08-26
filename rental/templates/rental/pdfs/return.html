@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Rücknahmeprotokoll {{ rental_case.number }}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { color: #18212f; font-family: sans-serif; font-size: 11pt; line-height: 1.45; }
+    header { border-bottom: 2px solid #1955a6; margin-bottom: 18px; padding-bottom: 12px; }
+    h1 { color: #1955a6; font-size: 22pt; margin: 0 0 6px; }
+    h2 { color: #1955a6; font-size: 14pt; margin: 20px 0 8px; }
+    .meta { color: #5d6b7c; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .box { border: 1px solid #d4dde8; border-radius: 8px; padding: 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #d4dde8; padding: 7px; text-align: left; vertical-align: top; }
+    th { background: #eef4fb; }
+    .amounts { width: 55%; margin-left: auto; }
+    .issue { color: #9f1239; font-weight: bold; }
+    .ok { color: #166534; font-weight: bold; }
+    .note { background: #f8fafc; border-left: 4px solid #1955a6; padding: 10px; margin-top: 14px; }
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+    .signature-box { border: 1px solid #d4dde8; min-height: 95px; padding: 8px; }
+    .signature-box img { max-height: 68px; max-width: 100%; display: block; margin-top: 6px; }
+    footer { border-top: 1px solid #d4dde8; color: #5d6b7c; font-size: 9pt; margin-top: 28px; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Rücknahmeprotokoll</h1>
+    <div class="meta">Vorgang {{ rental_case.number }} · erstellt am {{ generated_at|date:"d.m.Y H:i" }}</div>
+  </header>
+
+  <section class="grid">
+    <div class="box">
+      <h2>Entleiher</h2>
+      <strong>{{ rental_case.borrower.name }}</strong><br>
+      {% if rental_case.borrower.organization %}{{ rental_case.borrower.organization }}<br>{% endif %}
+      {{ rental_case.borrower.email }}<br>
+      {% if rental_case.borrower.phone %}{{ rental_case.borrower.phone }}<br>{% endif %}
+      {% if rental_case.borrower.street %}{{ rental_case.borrower.street }}<br>{% endif %}
+      {% if rental_case.borrower.postal_code or rental_case.borrower.city %}{{ rental_case.borrower.postal_code }} {{ rental_case.borrower.city }}{% endif %}
+    </div>
+    <div class="box">
+      <h2>Rücknahmedaten</h2>
+      <strong>Ausleihzeitraum:</strong><br>
+      {{ rental_case.reserved_from|date:"d.m.Y H:i" }} – {{ rental_case.reserved_until|date:"d.m.Y H:i" }}<br>
+      <strong>Status:</strong> {{ rental_case.get_status_display }}<br>
+      {% if protocol %}
+        <strong>Durchgeführt am:</strong> {{ protocol.performed_at|date:"d.m.Y H:i" }}<br>
+        <strong>Helfer:</strong> {{ protocol.performed_by.get_username }}
+      {% else %}
+        <span class="meta">Noch kein gespeichertes Rücknahmeprotokoll vorhanden.</span>
+      {% endif %}
+    </div>
+  </section>
+
+  <h2>Zurückgenommene Ausstattung</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Menge</th>
+        <th>Artikel</th>
+        <th>Rücknahmezustand</th>
+        <th>Klärbetrag</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+        <tr>
+          <td>{{ item.quantity }}</td>
+          <td>
+            <strong>{{ item.product.name }}</strong><br>
+            {% if item.product.storage_location %}<span class="meta">Lagerort: {{ item.product.storage_location }}</span>{% endif %}
+          </td>
+          <td>
+            {% if item.missing or item.damaged or item.damage_amount %}
+              <div class="issue">Klärung erforderlich</div>
+            {% else %}
+              <div class="ok">In Ordnung</div>
+            {% endif %}
+            {% if item.return_condition %}{{ item.return_condition|linebreaksbr }}{% else %}<span class="meta">Kein Rücknahmezustand erfasst.</span>{% endif %}
+          </td>
+          <td>{{ item.damage_amount }} €</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">Noch keine Artikelpositionen erfasst.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Beträge</h2>
+  <table class="amounts">
+    <tr><th>Erwartete Spende</th><td>{{ rental_case.expected_donation }} €</td></tr>
+    <tr><th>Erhaltene Spende</th><td>{{ rental_case.received_donation }} €</td></tr>
+  </table>
+
+  {% if protocol and protocol.notes %}
+    <div class="note">
+      <strong>Protokollnotizen:</strong><br>
+      {{ protocol.notes|linebreaksbr }}
+    </div>
+  {% endif %}
+
+  <h2>Unterschriften</h2>
+  <section class="signatures">
+    <div class="signature-box">
+      <strong>Entleiher</strong>
+      {% if borrower_signature_data_url %}<img src="{{ borrower_signature_data_url }}" alt="Unterschrift Entleiher">{% else %}<p class="meta">Keine Signatur gespeichert.</p>{% endif %}
+    </div>
+    <div class="signature-box">
+      <strong>Verein / Helfer</strong>
+      {% if club_signature_data_url %}<img src="{{ club_signature_data_url }}" alt="Unterschrift Verein">{% else %}<p class="meta">Keine Signatur gespeichert.</p>{% endif %}
+    </div>
+  </section>
+
+  <footer>
+    Dieses Rücknahmeprotokoll dokumentiert Rückgabezustand, Schäden/Fehlteile, Klärbeträge und Signaturen zum Zeitpunkt der Rücknahme.
+  </footer>
+</body>
+</html>

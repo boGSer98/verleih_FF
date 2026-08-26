@@ -457,6 +457,27 @@ class DocumentPdfTests(TestCase):
         self.case.items.update(handover_condition='sauber und vollständig', notes='Zubehör geprüft')
         return protocol
 
+    def _create_return_protocol(self):
+        protocol = Protocol.objects.create(
+            rental_case=self.case,
+            protocol_type=Protocol.ProtocolType.RETURN,
+            performed_by=self.user,
+            notes='Rücknahme mit Klärbetrag protokolliert.',
+        )
+        protocol.borrower_signature.save('borrower-return.png', ContentFile(b'borrower-return-signature-bytes' * 10), save=False)
+        protocol.club_signature.save('club-return.png', ContentFile(b'club-return-signature-bytes' * 10), save=False)
+        protocol.save(update_fields=['borrower_signature', 'club_signature', 'updated_at'])
+        self.case.items.update(
+            return_condition=(
+                'Artikel beschädigt zurückgegeben.\n'
+                'Zubehör vollständig und in Ordnung.\n'
+                'Delle an Tür.'
+            ),
+            damaged=True,
+            damage_amount=Decimal('12.50'),
+        )
+        return protocol
+
     def test_reservation_pdf_is_generated_and_stored_as_document(self):
         document = create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
 
@@ -473,6 +494,17 @@ class DocumentPdfTests(TestCase):
 
         self.assertEqual(document.document_type, Document.DocumentType.HANDOVER)
         self.assertTrue(document.file.name.startswith('documents/uebergabeprotokoll-'))
+        document.file.open('rb')
+        self.assertEqual(document.file.read(4), b'%PDF')
+        document.file.close()
+
+    def test_return_pdf_is_generated_with_latest_protocol_and_clarification_amount(self):
+        self._create_return_protocol()
+
+        document = create_or_replace_document(self.case, Document.DocumentType.RETURN)
+
+        self.assertEqual(document.document_type, Document.DocumentType.RETURN)
+        self.assertTrue(document.file.name.startswith('documents/ruecknahmeprotokoll-'))
         document.file.open('rb')
         self.assertEqual(document.file.read(4), b'%PDF')
         document.file.close()
@@ -505,6 +537,22 @@ class DocumentPdfTests(TestCase):
         response = self.client.get(reverse('rental:handover_document', args=[self.case.pk]))
 
         document = self.case.documents.get(document_type=Document.DocumentType.HANDOVER)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
+
+    def test_return_document_route_requires_login(self):
+        response = self.client.get(reverse('rental:return_document', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_return_document_route_creates_pdf_and_redirects_to_download(self):
+        self._create_return_protocol()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:return_document', args=[self.case.pk]))
+
+        document = self.case.documents.get(document_type=Document.DocumentType.RETURN)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
 
