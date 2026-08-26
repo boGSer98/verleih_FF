@@ -1,3 +1,5 @@
+import base64
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -215,3 +217,79 @@ class DashboardViewTests(TestCase):
         self.assertIn(donation.number, content)
         self.assertIn(clarification.number, content)
         self.assertIn('min-height: 54px', content)
+
+
+class HandoverViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='helfer2', password='testpass123')
+        self.category = ProductCategory.objects.create(name='Übergabeausstattung')
+        self.product = Product.objects.create(
+            name='Pavillon',
+            category=self.category,
+            stock_quantity=2,
+            storage_location='Garage',
+        )
+        self.borrower = Borrower.objects.create(name='Erika Beispiel', email='erika@example.org')
+        self.case = RentalCase.objects.create(
+            borrower=self.borrower,
+            reserved_from=timezone.now(),
+            reserved_until=timezone.now() + timezone.timedelta(hours=6),
+            status=RentalCase.Status.PREPARED,
+        )
+        self.item = RentalCaseItem.objects.create(rental_case=self.case, product=self.product, quantity=1)
+        self.signature_data = 'data:image/png;base64,' + base64.b64encode(b'png-signature-bytes' * 10).decode('ascii')
+
+    def test_handover_requires_login(self):
+        response = self.client.get(reverse('rental:handover', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_handover_page_is_mobile_signature_form(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:handover', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
+        self.assertIn('Unterschrift Entleiher', content)
+        self.assertIn('Unterschrift Verein / Helfer', content)
+        self.assertIn('touch-action:none', content)
+        self.assertIn('min-height:54px', content)
+
+    def test_handover_post_creates_protocol_signatures_and_updates_status(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
+            f'condition_{self.item.pk}': 'vollständig und sauber',
+            f'note_{self.item.pk}': 'direkt vor Ort geprüft',
+            'notes': 'Übergabe am Vereinsheim',
+            'borrower_signature_data': self.signature_data,
+            'club_signature_data': self.signature_data,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.item.refresh_from_db()
+        protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.HANDOVER)
+        self.assertEqual(self.case.status, RentalCase.Status.HANDED_OVER)
+        self.assertEqual(self.item.handover_condition, 'vollständig und sauber')
+        self.assertEqual(self.item.notes, 'direkt vor Ort geprüft')
+        self.assertEqual(protocol.notes, 'Übergabe am Vereinsheim')
+        self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
+        self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
+
+    def test_handover_post_requires_signatures(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
+            f'condition_{self.item.pk}': 'vollständig',
+            'borrower_signature_data': '',
+            'club_signature_data': '',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
+        self.assertEqual(self.case.protocols.count(), 0)
