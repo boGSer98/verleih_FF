@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from .emailing import send_document_email
 from .models import Document, Protocol, RentalCase
 from .pdf import create_or_replace_document, document_filename
 
@@ -347,6 +348,21 @@ def generate_closing_document(request, pk):
     )
     messages.success(request, 'Abschlussübersicht als PDF erzeugt.')
     return redirect('rental:document_download', pk=document.pk)
+
+
+@login_required
+def send_document(request, pk):
+    document = get_object_or_404(
+        Document.objects.select_related('rental_case__borrower'),
+        pk=pk,
+    )
+    if request.method != 'POST':
+        return HttpResponse('Mailversand erfordert POST.', status=405)
+    if send_document_email(document, request=request):
+        messages.success(request, f'Dokument wurde an {document.sent_to} gesendet.')
+    else:
+        messages.error(request, f'Dokument konnte nicht gesendet werden: {document.send_error}')
+    return redirect(_admin_change_url(document.rental_case))
 
 
 @login_required
