@@ -40,9 +40,10 @@ Storniert
 ## Nächste Entwicklungsschritte
 
 1. Admin-/Backend-Grundfunktionen stabilisieren. Status: erste Phase umgesetzt mit Artikelstatus, Zubehör/Bestandteilen, Ersatzwert, Admin-Feldsets und abgesicherten Statusübergängen.
-2. Verfügbarkeitsprüfung für Artikel und Zeitraum ergänzen. Status: mengenbasierte Überschneidungslogik für blockierende Vorgänge umgesetzt; Kalender-/Listenansicht folgt im Dashboard-Schritt.
-3. Mobile Prozessseiten für Übergabe und Rücknahme bauen.
-4. Signatur-Erfassung im Browser integrieren.
-5. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen.
-6. SMTP-Mailversand mit PDF-Anhang implementieren.
-7. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.
+2. Verfügbarkeitsprüfung für Artikel und Zeitraum ergänzen. Status: mengenbasierte Überschneidungslogik für blockierende Vorgänge umgesetzt.
+3. Prozess-Dashboard bereitstellen. Status: mobile Tagesübersicht für Abholungen, Rücknahmen, offene Spenden und Klärfälle umgesetzt.
+4. Mobile Prozessseiten für Übergabe und Rücknahme bauen.
+5. Signatur-Erfassung im Browser integrieren.
+6. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen.
+7. SMTP-Mailversand mit PDF-Anhang implementieren.
+8. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.

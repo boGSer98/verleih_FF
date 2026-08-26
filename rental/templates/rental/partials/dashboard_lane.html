@@ -1,0 +1,21 @@
+<article class="card lane {{ css_class }}">
+  <h2>{{ title }}</h2>
+  {% if cards %}
+    <div class="case-list">
+      {% for card in cards %}
+        <div class="case-card">
+          <h3>{{ card.case.number }} · {{ card.case.borrower.name }}</h3>
+          <p class="muted">{{ card.case.borrower.organization|default:"Keine Organisation erfasst" }}</p>
+          <div class="case-meta">
+            <span class="pill">{{ card.case.get_status_display }}</span>
+            <span class="pill">{{ card.case.reserved_from|date:"d.m. H:i" }} – {{ card.case.reserved_until|date:"d.m. H:i" }}</span>
+          </div>
+          <p>{{ card.item_summary }}</p>
+          <a class="button secondary" href="{{ card.url }}">Vorgang öffnen</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">{{ empty_text }}</div>
+  {% endif %}
+</article>
