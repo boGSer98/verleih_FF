@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Sum
 from django.utils import timezone
 
 
@@ -56,6 +57,26 @@ class Product(TimeStampedModel):
     @property
     def can_be_reserved(self):
         return self.active and self.status == self.Status.AVAILABLE and self.stock_quantity > 0
+
+    def reserved_quantity(self, reserved_from, reserved_until, *, exclude_case=None):
+        if not reserved_from or not reserved_until:
+            return 0
+        items = self.case_items.filter(
+            rental_case__status__in=RentalCase.blocking_statuses(),
+            rental_case__reserved_from__lt=reserved_until,
+            rental_case__reserved_until__gt=reserved_from,
+        )
+        if exclude_case and exclude_case.pk:
+            items = items.exclude(rental_case=exclude_case)
+        return items.aggregate(total=Sum('quantity'))['total'] or 0
+
+    def available_quantity(self, reserved_from, reserved_until, *, exclude_case=None):
+        if not self.can_be_reserved:
+            return 0
+        return max(self.stock_quantity - self.reserved_quantity(reserved_from, reserved_until, exclude_case=exclude_case), 0)
+
+    def is_available(self, quantity, reserved_from, reserved_until, *, exclude_case=None):
+        return self.available_quantity(reserved_from, reserved_until, exclude_case=exclude_case) >= quantity
 
 
 class ProductAccessory(TimeStampedModel):
@@ -119,6 +140,13 @@ class RentalCase(TimeStampedModel):
         Status.COMPLETED: set(),
         Status.CANCELLED: set(),
     }
+    BLOCKING_STATUSES = {
+        Status.RESERVED,
+        Status.PREPARED,
+        Status.HANDED_OVER,
+        Status.DONATION_OPEN,
+        Status.DONATION_RECEIVED,
+    }
 
     number = models.CharField('Vorgangsnummer', max_length=40, unique=True, blank=True)
     borrower = models.ForeignKey(Borrower, verbose_name='Entleiher', on_delete=models.PROTECT, related_name='rental_cases')
@@ -161,6 +189,10 @@ class RentalCase(TimeStampedModel):
     def allowed_next_statuses(self):
         return self.TRANSITIONS.get(self.status, set())
 
+    @classmethod
+    def blocking_statuses(cls):
+        return cls.BLOCKING_STATUSES
+
     def can_transition_to(self, target_status):
         return target_status in self.allowed_next_statuses()
 
@@ -202,6 +234,16 @@ class RentalCaseItem(TimeStampedModel):
             raise ValidationError({'quantity': 'Die Menge muss mindestens 1 betragen.'})
         if self.product_id and not self.product.can_be_reserved:
             raise ValidationError({'product': 'Dieser Artikel ist aktuell nicht für Reservierungen verfügbar.'})
+        if self.product_id and self.rental_case_id:
+            available_quantity = self.product.available_quantity(
+                self.rental_case.reserved_from,
+                self.rental_case.reserved_until,
+                exclude_case=self.rental_case,
+            )
+            if self.quantity > available_quantity:
+                raise ValidationError({
+                    'quantity': f'Im gewählten Zeitraum sind nur {available_quantity} Stück verfügbar.'
+                })
 
 
 class Protocol(TimeStampedModel):

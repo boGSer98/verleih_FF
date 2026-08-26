@@ -55,6 +55,8 @@ Abnahmekriterien:
 
 ## Phase 2 – Verfügbarkeitsprüfung und Kalenderlogik
 
+Status: erste mengenbasierte Überschneidungsprüfung umgesetzt.
+
 Ziel: Artikel können nicht versehentlich doppelt im selben Zeitraum zugesagt werden.
 
 Aufgaben:

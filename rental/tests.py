@@ -6,6 +6,15 @@ from django.utils import timezone
 from .models import Borrower, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
 
 
+def create_case(borrower, start, end, status=RentalCase.Status.RESERVED):
+    return RentalCase.objects.create(
+        borrower=borrower,
+        reserved_from=start,
+        reserved_until=end,
+        status=status,
+    )
+
+
 class RentalCaseModelTests(TestCase):
     def test_case_number_is_generated(self):
         borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
@@ -88,3 +97,57 @@ class RentalCaseModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             case.transition_to(RentalCase.Status.COMPLETED)
+
+    def test_overlapping_reserved_quantity_reduces_availability(self):
+        category = ProductCategory.objects.create(name='Tische')
+        product = Product.objects.create(name='Stehtisch', category=category, stock_quantity=5)
+        borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
+        start = timezone.now()
+        end = start + timezone.timedelta(days=1)
+        case = create_case(borrower, start, end)
+        RentalCaseItem.objects.create(rental_case=case, product=product, quantity=3)
+
+        self.assertEqual(product.reserved_quantity(start + timezone.timedelta(hours=1), end), 3)
+        self.assertEqual(product.available_quantity(start + timezone.timedelta(hours=1), end), 2)
+        self.assertTrue(product.is_available(2, start + timezone.timedelta(hours=1), end))
+        self.assertFalse(product.is_available(3, start + timezone.timedelta(hours=1), end))
+
+    def test_non_overlapping_or_cancelled_cases_do_not_block_availability(self):
+        category = ProductCategory.objects.create(name='Kabel')
+        product = Product.objects.create(name='Kabeltrommel', category=category, stock_quantity=2)
+        borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
+        start = timezone.now()
+        end = start + timezone.timedelta(days=1)
+        cancelled = create_case(borrower, start, end, status=RentalCase.Status.CANCELLED)
+        later = create_case(borrower, end + timezone.timedelta(hours=1), end + timezone.timedelta(days=2))
+        RentalCaseItem.objects.create(rental_case=cancelled, product=product, quantity=2)
+        RentalCaseItem.objects.create(rental_case=later, product=product, quantity=2)
+
+        self.assertEqual(product.reserved_quantity(start, end), 0)
+        self.assertEqual(product.available_quantity(start, end), 2)
+
+    def test_overbooking_is_blocked_for_overlapping_period(self):
+        category = ProductCategory.objects.create(name='Bänke')
+        product = Product.objects.create(name='Bierzeltbank', category=category, stock_quantity=4)
+        borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
+        start = timezone.now()
+        end = start + timezone.timedelta(days=1)
+        existing_case = create_case(borrower, start, end)
+        new_case = create_case(borrower, start + timezone.timedelta(hours=2), end + timezone.timedelta(hours=2), status=RentalCase.Status.REQUEST)
+        RentalCaseItem.objects.create(rental_case=existing_case, product=product, quantity=3)
+        item = RentalCaseItem(rental_case=new_case, product=product, quantity=2)
+
+        with self.assertRaises(ValidationError):
+            item.full_clean()
+
+    def test_current_case_is_excluded_when_validating_existing_item(self):
+        category = ProductCategory.objects.create(name='Geschirr')
+        product = Product.objects.create(name='Teller', category=category, stock_quantity=10)
+        borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
+        start = timezone.now()
+        end = start + timezone.timedelta(days=1)
+        case = create_case(borrower, start, end)
+        item = RentalCaseItem.objects.create(rental_case=case, product=product, quantity=10)
+
+        item.full_clean()
+        self.assertEqual(product.available_quantity(start, end, exclude_case=case), 10)
