@@ -41,8 +41,11 @@ docker compose exec web python manage.py createsuperuser
 Aufruf lokal:
 
 ```text
+http://localhost:8000/
 http://localhost:8000/admin/
 ```
+
+Die Startseite ist ein login-geschütztes, mobile-optimiertes Verleih-Dashboard für Tagesaufgaben.
 
 ## Synology-Zielbetrieb
 

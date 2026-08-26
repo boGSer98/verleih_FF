@@ -83,6 +83,8 @@ Abnahmekriterien:
 
 ## Phase 3 – Prozess-Dashboard
 
+Status: erste mobile-optimierte Tagesübersicht umgesetzt.
+
 Ziel: Helfer sehen sofort, was heute zu tun ist.
 
 Aufgaben:

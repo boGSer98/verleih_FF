@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from .models import Borrower, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
@@ -151,3 +152,66 @@ class RentalCaseModelTests(TestCase):
 
         item.full_clean()
         self.assertEqual(product.available_quantity(start, end, exclude_case=case), 10)
+
+
+class DashboardViewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='helfer', password='testpass123')
+        self.category = ProductCategory.objects.create(name='Mobile Ausstattung')
+        self.product = Product.objects.create(name='Bierzeltgarnitur', category=self.category, stock_quantity=10)
+        self.borrower = Borrower.objects.create(
+            name='Förderverein Muster',
+            organization='Förderverein',
+            email='kontakt@example.org',
+        )
+
+    def _create_case(self, *, status, start=None, end=None):
+        start = start or timezone.now()
+        end = end or start + timezone.timedelta(hours=4)
+        case = RentalCase.objects.create(
+            borrower=self.borrower,
+            reserved_from=start,
+            reserved_until=end,
+            status=status,
+            expected_donation=25,
+            received_donation=10,
+        )
+        RentalCaseItem.objects.create(rental_case=case, product=self.product, quantity=2)
+        return case
+
+    def test_dashboard_requires_login(self):
+        response = self.client.get(reverse('rental:dashboard'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_dashboard_groups_mobile_process_lanes(self):
+        today_start = timezone.now().replace(hour=9, minute=0, second=0, microsecond=0)
+        pickup = self._create_case(status=RentalCase.Status.PREPARED, start=today_start)
+        returned_due = self._create_case(
+            status=RentalCase.Status.HANDED_OVER,
+            start=today_start - timezone.timedelta(days=1),
+            end=today_start + timezone.timedelta(hours=2),
+        )
+        donation = self._create_case(
+            status=RentalCase.Status.DONATION_OPEN,
+            start=today_start - timezone.timedelta(days=2),
+            end=today_start - timezone.timedelta(days=1),
+        )
+        clarification = self._create_case(status=RentalCase.Status.CLARIFICATION)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
+        self.assertIn('Abholung heute', content)
+        self.assertIn('Rücknahme heute', content)
+        self.assertIn('Spende offen', content)
+        self.assertIn('Klärung nötig', content)
+        self.assertIn(pickup.number, content)
+        self.assertIn(returned_due.number, content)
+        self.assertIn(donation.number, content)
+        self.assertIn(clarification.number, content)
+        self.assertIn('min-height: 54px', content)
