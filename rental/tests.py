@@ -221,6 +221,8 @@ class DashboardViewTests(TestCase):
         self.assertIn(donation.number, content)
         self.assertIn(clarification.number, content)
         self.assertIn('min-height: 54px', content)
+        self.assertIn(reverse('rental:reservation_document_send', args=[pickup.pk]), content)
+        self.assertIn('Reservierung mailen', content)
 
 
 class HandoverViewTests(TestCase):
@@ -647,3 +649,32 @@ class DocumentPdfTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(len(mail.outbox), 0)
         self.assertIn('Keine E-Mail-Adresse', document.send_error)
+
+    def test_generated_document_send_requires_login(self):
+        response = self.client.post(reverse('rental:reservation_document_send', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
+    def test_generated_document_send_rejects_get(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:reservation_document_send', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 405)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', DEFAULT_FROM_EMAIL='verein@example.org')
+    def test_generated_document_send_creates_pdf_and_emails_it(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:reservation_document_send', args=[self.case.pk]))
+
+        document = self.case.documents.get(document_type=Document.DocumentType.RESERVATION)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('admin:rental_rentalcase_change', args=[self.case.pk]))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.borrower.email])
+        self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
+        self.assertEqual(document.sent_to, self.borrower.email)
+        self.assertIsNotNone(document.sent_at)
+        self.assertEqual(document.send_error, '')

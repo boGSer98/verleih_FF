@@ -17,9 +17,25 @@
           <a class="button" href="{{ card.return_url }}">Rücknahme starten</a>
           {% endif %}
           <a class="button secondary" href="{{ card.reservation_document_url }}">Reservierungs-PDF</a>
+          <form class="inline-form" method="post" action="{{ card.reservation_document_send_url }}">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">Reservierung mailen</button>
+          </form>
           <a class="button secondary" href="{{ card.handover_document_url }}">Übergabe-PDF</a>
+          <form class="inline-form" method="post" action="{{ card.handover_document_send_url }}">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">Übergabe mailen</button>
+          </form>
           <a class="button secondary" href="{{ card.return_document_url }}">Rücknahme-PDF</a>
+          <form class="inline-form" method="post" action="{{ card.return_document_send_url }}">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">Rücknahme mailen</button>
+          </form>
           <a class="button secondary" href="{{ card.closing_document_url }}">Abschluss-PDF</a>
+          <form class="inline-form" method="post" action="{{ card.closing_document_send_url }}">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">Abschluss mailen</button>
+          </form>
           <a class="button secondary" href="{{ card.url }}">Vorgang öffnen</a>
         </div>
       {% endfor %}

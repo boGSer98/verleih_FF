@@ -36,6 +36,10 @@ def _case_card(rental_case):
         'handover_document_url': reverse('rental:handover_document', args=[rental_case.pk]),
         'return_document_url': reverse('rental:return_document', args=[rental_case.pk]),
         'closing_document_url': reverse('rental:closing_document', args=[rental_case.pk]),
+        'reservation_document_send_url': reverse('rental:reservation_document_send', args=[rental_case.pk]),
+        'handover_document_send_url': reverse('rental:handover_document_send', args=[rental_case.pk]),
+        'return_document_send_url': reverse('rental:return_document_send', args=[rental_case.pk]),
+        'closing_document_send_url': reverse('rental:closing_document_send', args=[rental_case.pk]),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -292,62 +296,87 @@ def return_case(request, pk):
 
 @login_required
 def generate_reservation_document(request, pk):
-    rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
-        pk=pk,
-    )
-    document = create_or_replace_document(
-        rental_case,
+    return _generate_document_response(
+        request,
+        pk,
         Document.DocumentType.RESERVATION,
-        request=request,
+        'Reservierungsbestätigung als PDF erzeugt.',
     )
-    messages.success(request, 'Reservierungsbestätigung als PDF erzeugt.')
-    return redirect('rental:document_download', pk=document.pk)
 
 
 @login_required
 def generate_handover_document(request, pk):
-    rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
-        pk=pk,
-    )
-    document = create_or_replace_document(
-        rental_case,
+    return _generate_document_response(
+        request,
+        pk,
         Document.DocumentType.HANDOVER,
-        request=request,
+        'Übergabeprotokoll als PDF erzeugt.',
     )
-    messages.success(request, 'Übergabeprotokoll als PDF erzeugt.')
-    return redirect('rental:document_download', pk=document.pk)
 
 
 @login_required
 def generate_return_document(request, pk):
-    rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
-        pk=pk,
-    )
-    document = create_or_replace_document(
-        rental_case,
+    return _generate_document_response(
+        request,
+        pk,
         Document.DocumentType.RETURN,
-        request=request,
+        'Rücknahmeprotokoll als PDF erzeugt.',
     )
-    messages.success(request, 'Rücknahmeprotokoll als PDF erzeugt.')
-    return redirect('rental:document_download', pk=document.pk)
 
 
 @login_required
 def generate_closing_document(request, pk):
+    return _generate_document_response(
+        request,
+        pk,
+        Document.DocumentType.CLOSING,
+        'Abschlussübersicht als PDF erzeugt.',
+    )
+
+
+def _generate_document_response(request, pk, document_type, success_message):
     rental_case = get_object_or_404(
         RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
         pk=pk,
     )
-    document = create_or_replace_document(
-        rental_case,
-        Document.DocumentType.CLOSING,
-        request=request,
-    )
-    messages.success(request, 'Abschlussübersicht als PDF erzeugt.')
+    document = create_or_replace_document(rental_case, document_type, request=request)
+    messages.success(request, success_message)
     return redirect('rental:document_download', pk=document.pk)
+
+
+def _send_generated_document_response(request, pk, document_type):
+    rental_case = get_object_or_404(
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        pk=pk,
+    )
+    if request.method != 'POST':
+        return HttpResponse('Mailversand erfordert POST.', status=405)
+    document = create_or_replace_document(rental_case, document_type, request=request)
+    if send_document_email(document, request=request):
+        messages.success(request, f'{document.get_document_type_display()} wurde an {document.sent_to} gesendet.')
+    else:
+        messages.error(request, f'{document.get_document_type_display()} konnte nicht gesendet werden: {document.send_error}')
+    return redirect(_admin_change_url(rental_case))
+
+
+@login_required
+def send_reservation_document(request, pk):
+    return _send_generated_document_response(request, pk, Document.DocumentType.RESERVATION)
+
+
+@login_required
+def send_handover_document(request, pk):
+    return _send_generated_document_response(request, pk, Document.DocumentType.HANDOVER)
+
+
+@login_required
+def send_return_document(request, pk):
+    return _send_generated_document_response(request, pk, Document.DocumentType.RETURN)
+
+
+@login_required
+def send_closing_document(request, pk):
+    return _send_generated_document_response(request, pk, Document.DocumentType.CLOSING)
 
 
 @login_required
