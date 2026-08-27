@@ -12,6 +12,7 @@ urlpatterns = [
     path('vorgaenge/<int:pk>/uebergabe/', views.handover, name='handover'),
     path('vorgaenge/<int:pk>/ruecknahme/', views.return_case, name='return'),
     path('vorgaenge/<int:pk>/spende-erhalten/', views.mark_donation_received, name='donation_received'),
+    path('vorgaenge/<int:pk>/abschliessen/', views.complete_case, name='case_complete'),
     path('vorgaenge/<int:pk>/dokumente/reservierung/', views.generate_reservation_document, name='reservation_document'),
     path('vorgaenge/<int:pk>/dokumente/reservierung/senden/', views.send_reservation_document, name='reservation_document_send'),
     path('vorgaenge/<int:pk>/dokumente/uebergabe/', views.generate_handover_document, name='handover_document'),

@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import FileResponse, HttpResponse
@@ -45,6 +46,7 @@ def _case_card(rental_case):
         'return_document_send_url': reverse('rental:return_document_send', args=[rental_case.pk]),
         'closing_document_send_url': reverse('rental:closing_document_send', args=[rental_case.pk]),
         'donation_received_url': reverse('rental:donation_received', args=[rental_case.pk]),
+        'complete_url': reverse('rental:case_complete', args=[rental_case.pk]),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -279,11 +281,24 @@ def case_detail(request, pk):
         (protocol for protocol in rental_case.protocols.all() if protocol.protocol_type == Protocol.ProtocolType.RETURN),
         None,
     )
+    can_complete = rental_case.status in {
+        RentalCase.Status.RETURNED,
+        RentalCase.Status.DONATION_RECEIVED,
+        RentalCase.Status.CLARIFICATION,
+    }
     context = {
         'card': _case_card(rental_case),
         'documents_by_type': documents_by_type,
         'latest_handover_protocol': latest_handover_protocol,
         'latest_return_protocol': latest_return_protocol,
+        'can_complete': can_complete,
+        'needs_donation_decision': rental_case.has_open_donation_decision(),
+        'needs_clarification_resolution': rental_case.status == RentalCase.Status.CLARIFICATION,
+        'donation_decision_choices': [
+            choice for choice in RentalCase.DonationDecision.choices
+            if choice[0] != RentalCase.DonationDecision.OPEN
+        ],
+        'donation_payment_method_choices': RentalCase.DonationPaymentMethod.choices,
         'dashboard_url': reverse('rental:dashboard'),
         'calendar_url': reverse('rental:calendar'),
         'admin_url': _admin_change_url(rental_case),
@@ -412,7 +427,7 @@ def handover(request, pk):
                 rental_case.transition_to(RentalCase.Status.HANDED_OVER)
 
             messages.success(request, 'Übergabeprotokoll gespeichert und Vorgang auf „Übergeben“ gesetzt.')
-            return redirect(_admin_change_url(rental_case))
+            return redirect('rental:case_detail', pk=rental_case.pk)
         messages.error(request, error)
 
     context = {
@@ -542,7 +557,7 @@ def return_case(request, pk):
                 messages.warning(request, 'Rücknahme gespeichert. Wegen Fehlteilen, Schäden oder Reinigungsbedarf ist Klärung nötig.')
             else:
                 messages.success(request, 'Rücknahmeprotokoll gespeichert und Vorgang auf „Zurückgenommen“ gesetzt.')
-            return redirect(_admin_change_url(rental_case))
+            return redirect('rental:case_detail', pk=rental_case.pk)
         messages.error(request, error)
 
     context = {
@@ -551,6 +566,36 @@ def return_case(request, pk):
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/return.html', context)
+
+
+def _apply_donation_decision_from_post(request, rental_case):
+    decision = request.POST.get('decision') or RentalCase.DonationDecision.RECEIVED
+    if decision not in RentalCase.DonationDecision.values or decision == RentalCase.DonationDecision.OPEN:
+        raise ValueError('Die Spendenentscheidung ist ungültig.')
+
+    payment_method = request.POST.get('payment_method', '').strip()
+    if payment_method and payment_method not in RentalCase.DonationPaymentMethod.values:
+        raise ValueError('Die Zahlungsart ist ungültig.')
+
+    amount_raw = request.POST.get('amount', '').strip().replace(',', '.')
+    try:
+        amount = Decimal(amount_raw) if amount_raw else rental_case.expected_donation
+    except InvalidOperation as exc:
+        raise ValueError('Der Spendenbetrag ist ungültig.') from exc
+
+    if decision == RentalCase.DonationDecision.WAIVED:
+        amount = Decimal('0')
+        payment_method = ''
+
+    if amount < 0:
+        raise ValueError('Der Spendenbetrag darf nicht negativ sein.')
+
+    rental_case.received_donation = amount
+    rental_case.donation_decision = decision
+    rental_case.donation_payment_method = payment_method
+    rental_case.donation_note = request.POST.get('donation_note', '').strip()
+    rental_case.donation_received_at = timezone.now()
+    return amount, RentalCase.DonationDecision(decision).label
 
 
 @login_required
@@ -564,39 +609,13 @@ def mark_donation_received(request, pk):
         messages.error(request, 'Für diesen Vorgang kann aktuell keine Spende verbucht werden.')
         return redirect(_admin_change_url(rental_case))
 
-    decision = request.POST.get('decision') or RentalCase.DonationDecision.RECEIVED
-    if decision not in RentalCase.DonationDecision.values:
-        messages.error(request, 'Die Spendenentscheidung ist ungültig.')
-        return redirect(_admin_change_url(rental_case))
-
-    payment_method = request.POST.get('payment_method', '').strip()
-    if payment_method and payment_method not in RentalCase.DonationPaymentMethod.values:
-        messages.error(request, 'Die Zahlungsart ist ungültig.')
-        return redirect(_admin_change_url(rental_case))
-
-    amount_raw = request.POST.get('amount', '').strip().replace(',', '.')
     try:
-        amount = Decimal(amount_raw) if amount_raw else rental_case.expected_donation
-    except InvalidOperation:
-        messages.error(request, 'Der Spendenbetrag ist ungültig.')
-        return redirect(_admin_change_url(rental_case))
-
-    if decision == RentalCase.DonationDecision.WAIVED:
-        amount = Decimal('0')
-        payment_method = ''
-
-    if amount < 0:
-        messages.error(request, 'Der Spendenbetrag darf nicht negativ sein.')
-        return redirect(_admin_change_url(rental_case))
-
-    donation_note = request.POST.get('donation_note', '').strip()
+        amount, decision_label = _apply_donation_decision_from_post(request, rental_case)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect('rental:case_detail', pk=rental_case.pk)
 
     with transaction.atomic():
-        rental_case.received_donation = amount
-        rental_case.donation_decision = decision
-        rental_case.donation_payment_method = payment_method
-        rental_case.donation_note = donation_note
-        rental_case.donation_received_at = timezone.now()
         rental_case.transition_to(RentalCase.Status.DONATION_RECEIVED, save=False)
         rental_case.save(update_fields=[
             'status',
@@ -609,10 +628,55 @@ def mark_donation_received(request, pk):
             'updated_at',
         ])
 
-    decision_label = RentalCase.DonationDecision(decision).label
     messages.success(request, f'Spendenentscheidung „{decision_label}“ über {amount} € wurde dokumentiert.')
-    return redirect(_admin_change_url(rental_case))
+    return redirect('rental:case_detail', pk=rental_case.pk)
 
+
+@login_required
+@permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.add_document'), raise_exception=True)
+def complete_case(request, pk):
+    rental_case = get_object_or_404(RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'), pk=pk)
+    if request.method != 'POST':
+        return HttpResponse('Vorgangsabschluss erfordert POST.', status=405)
+
+    allowed_statuses = {
+        RentalCase.Status.RETURNED,
+        RentalCase.Status.DONATION_RECEIVED,
+        RentalCase.Status.CLARIFICATION,
+    }
+    if rental_case.status not in allowed_statuses:
+        messages.error(request, 'Dieser Vorgang kann aktuell nicht abgeschlossen werden.')
+        return redirect('rental:case_detail', pk=rental_case.pk)
+
+    if rental_case.status == RentalCase.Status.CLARIFICATION and request.POST.get('issues_resolved') != 'yes':
+        messages.error(request, 'Klärfälle können erst abgeschlossen werden, wenn die Klärung bestätigt wurde.')
+        return redirect('rental:case_detail', pk=rental_case.pk)
+
+    update_fields = ['status', 'closed_at', 'updated_at']
+    try:
+        if rental_case.has_open_donation_decision():
+            _apply_donation_decision_from_post(request, rental_case)
+            update_fields.extend([
+                'received_donation',
+                'donation_decision',
+                'donation_payment_method',
+                'donation_note',
+                'donation_received_at',
+            ])
+        closing_note = request.POST.get('closing_note', '').strip()
+        if closing_note:
+            rental_case.notes = (rental_case.notes + '\n\n' if rental_case.notes else '') + f'Abschluss: {closing_note}'
+            update_fields.append('notes')
+        with transaction.atomic():
+            rental_case.transition_to(RentalCase.Status.COMPLETED, save=False)
+            rental_case.save(update_fields=update_fields)
+            create_or_replace_document(rental_case, Document.DocumentType.CLOSING, request=request)
+    except (ValueError, ValidationError) as exc:
+        messages.error(request, str(exc))
+        return redirect('rental:case_detail', pk=rental_case.pk)
+
+    messages.success(request, f'Vorgang {rental_case.number} wurde abgeschlossen und die Abschlussübersicht erzeugt.')
+    return redirect('rental:case_detail', pk=rental_case.pk)
 
 
 @login_required

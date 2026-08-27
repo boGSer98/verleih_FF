@@ -226,7 +226,7 @@ Aufgaben:
 Abnahmekriterien:
 
 - Offene Spenden sind sichtbar.
-- Vorgang kann mit dokumentierter Spendenentscheidung abgeschlossen werden.
+- Vorgang kann mit dokumentierter Spendenentscheidung über die mobile Vorgangsdetailseite abgeschlossen werden.
 
 ## Phase 9 – Benutzer, Rollen und Sicherheit
 
@@ -309,6 +309,6 @@ Abnahmeszenario:
 9. Helfer öffnet mobile Rücknahme.
 10. Rückgabe wird dokumentiert und unterschrieben.
 11. PDF wird erstellt und per E-Mail versendet.
-12. Verwaltung schließt Vorgang ab.
+12. Verwaltung schließt Vorgang über die Vorgangsdetailseite ab; offene Spendenentscheidung und Klärfälle werden dort bestätigt, danach wird automatisch die Abschlussübersicht erzeugt.
 
 MVP ist fertig, wenn dieses Szenario auf der Synology oder einer vergleichbaren Docker-Umgebung durchläuft.

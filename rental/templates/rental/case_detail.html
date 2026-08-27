@@ -28,6 +28,11 @@
     dt { color:var(--muted); font-weight:800; }
     dd { margin:0; }
     .inline-form { margin:0; }
+    .completion-form { display:grid; gap:.7rem; }
+    .form-grid { display:grid; gap:.65rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    label { display:grid; gap:.25rem; font-weight:800; color:var(--muted); }
+    input, select, textarea { width:100%; border:1px solid #cbd6e2; border-radius:12px; padding:.75rem; font:inherit; color:var(--text); background:#fff; }
+    textarea { min-height:82px; resize:vertical; }
     .photo-list { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
     .photo { border:1px solid #dde5ee; border-radius:14px; padding:.5rem; background:#fbfdff; }
     .photo img { width:100%; height:auto; border-radius:10px; display:block; }
@@ -68,12 +73,51 @@
       <div class="button-row">
         {% if card.case.status == "reserved" or card.case.status == "prepared" %}<a class="button" href="{{ card.handover_url }}">Übergabe starten</a>{% endif %}
         {% if card.case.status == "handed_over" or card.case.status == "donation_open" or card.case.status == "donation_received" %}<a class="button" href="{{ card.return_url }}">Rücknahme starten</a>{% endif %}
+        {% if can_complete %}<a class="button warn" href="#abschluss">Vorgang abschließen</a>{% endif %}
         <a class="button secondary" href="{{ card.reservation_document_url }}">Reservierungs-PDF</a>
         <a class="button secondary" href="{{ card.handover_document_url }}">Übergabe-PDF</a>
         <a class="button secondary" href="{{ card.return_document_url }}">Rücknahme-PDF</a>
         <a class="button secondary" href="{{ card.closing_document_url }}">Abschluss-PDF</a>
       </div>
     </section>
+
+    {% if can_complete %}
+    <section id="abschluss" class="card">
+      <h2>Vermietung/Rückgabe abschließen</h2>
+      <p class="muted">Schließe den Vorgang erst ab, wenn Rücknahme, Klärung und Spendenentscheidung vollständig dokumentiert sind. Beim Abschluss wird die Abschlussübersicht automatisch erzeugt.</p>
+      <form class="completion-form" method="post" action="{{ card.complete_url }}">
+        {% csrf_token %}
+        {% if needs_donation_decision %}
+          <div class="form-grid">
+            <label>Spendenentscheidung
+              <select name="decision" required>
+                {% for value,label in donation_decision_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Betrag
+              <input name="amount" inputmode="decimal" value="{{ card.case.expected_donation }}">
+            </label>
+            <label>Zahlungsart
+              <select name="payment_method">
+                <option value="">Nicht angegeben</option>
+                {% for value,label in donation_payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+          </div>
+          <label>Zahlungs-/Spendennotiz
+            <textarea name="donation_note" placeholder="z. B. bar erhalten, überwiesen, Vorstand verzichtet">{{ card.case.donation_note }}</textarea>
+          </label>
+        {% endif %}
+        {% if needs_clarification_resolution %}
+          <label><span><input type="checkbox" name="issues_resolved" value="yes" required> Klärung ist erledigt, Schäden/Fehlteile sind bewertet und der Vorgang darf abgeschlossen werden.</span></label>
+        {% endif %}
+        <label>Abschlussnotiz
+          <textarea name="closing_note" placeholder="Optionale Abschlussbemerkung für die Vorgangsnotizen"></textarea>
+        </label>
+        <button class="warn" type="submit">Vorgang endgültig abschließen</button>
+      </form>
+    </section>
+    {% endif %}
 
     <section class="card">
       <h2>Artikelpositionen</h2>

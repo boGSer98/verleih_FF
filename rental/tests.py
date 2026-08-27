@@ -524,7 +524,7 @@ class DashboardViewTests(TestCase):
 
         response = self.client.post(reverse('rental:donation_received', args=[donation.pk]))
 
-        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('rental:case_detail', args=[donation.pk]))
         donation.refresh_from_db()
         self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
         self.assertEqual(donation.received_donation, Decimal('25.00'))
@@ -598,6 +598,66 @@ class DashboardViewTests(TestCase):
         donation.refresh_from_db()
         self.assertEqual(donation.status, RentalCase.Status.RETURNED)
         self.assertEqual(donation.received_donation, Decimal('10.00'))
+    def test_complete_case_requires_login(self):
+        rental_case = self._create_case(status=RentalCase.Status.RETURNED)
+
+        response = self.client.post(reverse('rental:case_complete', args=[rental_case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+        rental_case.refresh_from_db()
+        self.assertEqual(rental_case.status, RentalCase.Status.RETURNED)
+
+    def test_case_detail_shows_completion_form_after_return(self):
+        rental_case = self._create_case(status=RentalCase.Status.RETURNED)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:case_detail', args=[rental_case.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('Vermietung/Rückgabe abschließen', content)
+        self.assertIn(reverse('rental:case_complete', args=[rental_case.pk]), content)
+        self.assertIn('Spendenentscheidung', content)
+        self.assertIn('Vorgang endgültig abschließen', content)
+
+    def test_complete_case_documents_donation_and_generates_closing_pdf(self):
+        rental_case = self._create_case(status=RentalCase.Status.RETURNED)
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:case_complete', args=[rental_case.pk]), {
+            'decision': RentalCase.DonationDecision.RECEIVED,
+            'amount': '25,00',
+            'payment_method': RentalCase.DonationPaymentMethod.CASH,
+            'donation_note': 'Bar bei Rückgabe erhalten.',
+            'closing_note': 'Vorgang vollständig abgeschlossen.',
+        })
+
+        self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
+        rental_case.refresh_from_db()
+        self.assertEqual(rental_case.status, RentalCase.Status.COMPLETED)
+        self.assertIsNotNone(rental_case.closed_at)
+        self.assertEqual(rental_case.donation_decision, RentalCase.DonationDecision.RECEIVED)
+        self.assertEqual(rental_case.received_donation, Decimal('25.00'))
+        self.assertIn('Abschluss: Vorgang vollständig abgeschlossen.', rental_case.notes)
+        document = rental_case.documents.get(document_type=Document.DocumentType.CLOSING)
+        document.file.open('rb')
+        self.assertEqual(document.file.read(4), b'%PDF')
+        document.file.close()
+
+    def test_complete_case_blocks_unresolved_clarification(self):
+        rental_case = self._create_case(status=RentalCase.Status.CLARIFICATION)
+        rental_case.donation_decision = RentalCase.DonationDecision.WAIVED
+        rental_case.expected_donation = Decimal('0.00')
+        rental_case.save(update_fields=['donation_decision', 'expected_donation', 'updated_at'])
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:case_complete', args=[rental_case.pk]))
+
+        self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
+        rental_case.refresh_from_db()
+        self.assertEqual(rental_case.status, RentalCase.Status.CLARIFICATION)
+        self.assertFalse(rental_case.documents.filter(document_type=Document.DocumentType.CLOSING).exists())
 
 
 class HandoverViewTests(TestCase):
