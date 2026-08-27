@@ -313,6 +313,44 @@ class DashboardViewTests(TestCase):
         self.assertIn('name="donation_note"', content)
         self.assertIn(reverse('rental:case_create'), content)
         self.assertIn(reverse('rental:calendar'), content)
+        self.assertIn(reverse('rental:case_detail', args=[pickup.pk]), content)
+
+    def test_case_detail_page_shows_mobile_actions_documents_and_protocol_context(self):
+        case = self._create_case(status=RentalCase.Status.HANDED_OVER)
+        protocol = Protocol.objects.create(
+            rental_case=case,
+            protocol_type=Protocol.ProtocolType.RETURN,
+            performed_by=self.user,
+            notes='Rücknahme mit Schadensfoto dokumentiert.',
+        )
+        ProtocolPhoto.objects.create(
+            protocol=protocol,
+            image=SimpleUploadedFile('schaden.jpg', b'fake-image-bytes', content_type='image/jpeg'),
+            caption='Kratzer am Gestell',
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:case_detail', args=[case.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
+        self.assertIn(f'Vorgang {case.number}', content)
+        self.assertIn('Nächste Aktionen', content)
+        self.assertIn('Rücknahme starten', content)
+        self.assertIn(reverse('rental:return', args=[case.pk]), content)
+        self.assertIn(reverse('rental:reservation_document', args=[case.pk]), content)
+        self.assertIn('Dokumente & Mailversand', content)
+        self.assertIn('Rücknahmefotos', content)
+        self.assertIn('Kratzer am Gestell', content)
+
+    def test_case_detail_requires_login(self):
+        case = self._create_case(status=RentalCase.Status.RESERVED)
+
+        response = self.client.get(reverse('rental:case_detail', args=[case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
 
     def test_case_create_page_uses_minute_time_inputs_and_creates_reserved_case(self):
         manager = get_user_model().objects.create_user(username='verwaltung', password='testpass123')
