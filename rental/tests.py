@@ -384,16 +384,25 @@ class DashboardViewTests(TestCase):
         self.assertEqual(rental_case.reserved_from.second, 0)
         self.assertEqual(rental_case.items.get().quantity, 2)
 
-    def test_calendar_shows_active_cases(self):
-        case = self._create_case(status=RentalCase.Status.RESERVED)
+    def test_calendar_shows_month_grid_with_active_cases(self):
+        current_month = timezone.localdate().replace(day=1)
+        start = timezone.make_aware(timezone.datetime.combine(current_month, timezone.datetime.min.time())).replace(hour=9)
+        case = self._create_case(status=RentalCase.Status.RESERVED, start=start, end=start + timezone.timedelta(days=2))
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse('rental:calendar'))
+        response = self.client.get(reverse('rental:calendar'), {'year': current_month.year, 'month': current_month.month})
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode('utf-8')
         self.assertIn('Kalenderübersicht', content)
+        self.assertIn('Monatskalender', content)
+        for weekday in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']:
+            self.assertIn(f'<div class="weekday">{weekday}</div>', content)
+        self.assertIn('Vorheriger Monat', content)
+        self.assertIn('Nächster Monat', content)
+        self.assertIn('case-chip', content)
         self.assertIn(case.number, content)
+        self.assertIn('Aktive Vorgänge im sichtbaren Kalender', content)
         self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
 
     def test_dashboard_search_finds_case_by_number_borrower_and_product(self):

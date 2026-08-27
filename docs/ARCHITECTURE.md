@@ -41,7 +41,7 @@ Storniert
 
 1. Admin-/Backend-Grundfunktionen stabilisieren. Status: erste Phase umgesetzt mit Artikelstatus, Zubehör/Bestandteilen, Ersatzwert, Admin-Feldsets und abgesicherten Statusübergängen.
 2. Verfügbarkeitsprüfung für Artikel und Zeitraum ergänzen. Status: mengenbasierte Überschneidungslogik für blockierende Vorgänge umgesetzt.
-3. Prozess-Dashboard bereitstellen. Status: mobile Tagesübersicht für Abholungen, Rücknahmen, offene Spenden und Klärfälle mit Suche, Kalenderlink, Web-Vorgangsanlage und Vorgangsdetailseite umgesetzt.
+3. Prozess-Dashboard bereitstellen. Status: mobile Tagesübersicht für Abholungen, Rücknahmen, offene Spenden und Klärfälle mit Suche, Monatskalender, Web-Vorgangsanlage und Vorgangsdetailseite umgesetzt.
 4. Mobile Übergabe bauen. Status: Touch-optimierte Übergabemaske mit Artikelzuständen, Protokollnotiz, zwei Signaturen und Statuswechsel auf „Übergeben“ umgesetzt.
 5. Mobile Rücknahme bauen. Status: Geführte Abschnittsmaske für Vorgangsprüfung, Artikelzustand, Zubehörprüfung, Schäden/Reinigung, optionale Fotos, Signaturen und Statuswechsel auf „Zurückgenommen“ oder „Klärung nötig“ umgesetzt.
 6. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen. Status: PDF-Basislayout, Reservierungsbestätigung, Übergabeprotokoll, Rücknahmeprotokoll und Abschlussübersicht mit Dokumentenablage/Download umgesetzt.
