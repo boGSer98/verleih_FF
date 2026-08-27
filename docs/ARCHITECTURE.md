@@ -47,4 +47,5 @@ Storniert
 6. PDF-Templates für Reservierung, Übergabe, Rücknahme und Abschluss ergänzen. Status: PDF-Basislayout, Reservierungsbestätigung, Übergabeprotokoll, Rücknahmeprotokoll und Abschlussübersicht mit Dokumentenablage/Download umgesetzt.
 7. SMTP-Mailversand mit PDF-Anhang implementieren. Status: erster manueller Versand bestehender bzw. direkt erzeugter Dokumente an Entleiher mit Dashboard-Mailbuttons und Status-/Fehlerablage umgesetzt.
 8. Spenden-/Zahlungsprozess konkretisieren. Status: offene Spenden sind im Dashboard sichtbar; Spendenentscheidung, Zahlungsart, Betrag, Notiz und Eingangszeitpunkt werden dokumentiert.
-9. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.
+9. Benutzer/Rollen/Sicherheit. Status: Mustergruppen für Admin, Verwaltung/Vorstand, Helfer Ausgabe/Rücknahme und Lesen/Auswertung werden automatisch angelegt; Dashboard und Prozess-/Dokumentenviews prüfen passende Verleih-Rechte.
+10. Synology-Deployment mit Reverse Proxy/HTTPS dokumentieren.

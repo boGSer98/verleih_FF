@@ -2,6 +2,7 @@ import base64
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -11,6 +12,13 @@ from django.utils import timezone
 
 from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
 from .pdf import create_or_replace_document
+from .permissions import (
+    GROUP_ADMIN,
+    GROUP_HELPERS,
+    GROUP_MANAGEMENT,
+    GROUP_READONLY,
+    permission_codes_for_group,
+)
 
 
 def create_case(borrower, start, end, status=RentalCase.Status.RESERVED):
@@ -194,9 +202,42 @@ class RentalCaseModelTests(TestCase):
         self.assertEqual(product.available_quantity(start, end, exclude_case=case), 10)
 
 
+class RentalPermissionGroupTests(TestCase):
+    def _group_permission_codes(self, group_name):
+        return set(
+            Group.objects.get(name=group_name)
+            .permissions.filter(content_type__app_label='rental')
+            .values_list('codename', flat=True)
+        )
+
+    def test_sample_groups_are_created_with_expected_permissions(self):
+        for group_name in [GROUP_ADMIN, GROUP_MANAGEMENT, GROUP_HELPERS, GROUP_READONLY]:
+            with self.subTest(group_name=group_name):
+                self.assertTrue(Group.objects.filter(name=group_name).exists())
+                self.assertEqual(self._group_permission_codes(group_name), permission_codes_for_group(group_name))
+
+    def test_helper_group_has_process_permissions_but_no_delete_permissions(self):
+        permissions = self._group_permission_codes(GROUP_HELPERS)
+
+        self.assertIn('view_rentalcase', permissions)
+        self.assertIn('change_rentalcase', permissions)
+        self.assertIn('change_rentalcaseitem', permissions)
+        self.assertIn('add_protocol', permissions)
+        self.assertIn('add_document', permissions)
+        self.assertNotIn('delete_rentalcase', permissions)
+        self.assertNotIn('delete_document', permissions)
+
+    def test_readonly_group_only_has_view_permissions(self):
+        permissions = self._group_permission_codes(GROUP_READONLY)
+
+        self.assertTrue(permissions)
+        self.assertTrue(all(code.startswith('view_') for code in permissions))
+
+
 class DashboardViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username='helfer', password='testpass123')
+        self.user.groups.add(Group.objects.get(name=GROUP_HELPERS))
         self.category = ProductCategory.objects.create(name='Mobile Ausstattung')
         self.product = Product.objects.create(name='Bierzeltgarnitur', category=self.category, stock_quantity=10)
         self.borrower = Borrower.objects.create(
@@ -300,6 +341,14 @@ class DashboardViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/admin/login/', response['Location'])
 
+    def test_dashboard_requires_view_permission_after_login(self):
+        user_without_group = get_user_model().objects.create_user(username='ohne_rechte', password='testpass123')
+        self.client.force_login(user_without_group)
+
+        response = self.client.get(reverse('rental:dashboard'))
+
+        self.assertEqual(response.status_code, 403)
+
     def test_donation_received_action_requires_login(self):
         donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
 
@@ -395,6 +444,7 @@ class DashboardViewTests(TestCase):
 class HandoverViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username='helfer2', password='testpass123')
+        self.user.groups.add(Group.objects.get(name=GROUP_HELPERS))
         self.category = ProductCategory.objects.create(name='Übergabeausstattung')
         self.product = Product.objects.create(
             name='Pavillon',
@@ -471,6 +521,7 @@ class HandoverViewTests(TestCase):
 class ReturnViewTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username='ruecknahme', password='testpass123')
+        self.user.groups.add(Group.objects.get(name=GROUP_HELPERS))
         self.category = ProductCategory.objects.create(name='Rückgabeausstattung')
         self.product = Product.objects.create(
             name='Bierzeltgarnitur',
@@ -588,6 +639,7 @@ class ReturnViewTests(TestCase):
 class DocumentPdfTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username='dokumente', password='testpass123')
+        self.user.groups.add(Group.objects.get(name=GROUP_HELPERS))
         self.category = ProductCategory.objects.create(name='PDF-Ausstattung')
         self.product = Product.objects.create(
             name='Getränkekühlschrank',
