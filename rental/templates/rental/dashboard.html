@@ -56,6 +56,7 @@
     .lane.return { border-color: var(--primary); }
     .lane.donation { border-color: var(--warn); }
     .lane.clarification { border-color: var(--danger); }
+    .lane.completed { border-color: var(--ok); opacity: .96; }
     .case-list { display: grid; gap: .7rem; margin-top: .8rem; }
     .case-card { border: 1px solid #dde5ee; border-radius: 14px; padding: .85rem; }
     .case-card h3 { margin: 0 0 .35rem; font-size: 1rem; }
@@ -96,6 +97,7 @@
       {% include "rental/partials/dashboard_lane.html" with title="Rücknahme heute" css_class="return" cards=returns_today empty_text="Heute ist keine Rücknahme fällig." %}
       {% include "rental/partials/dashboard_lane.html" with title="Spende offen" css_class="donation" cards=donation_open empty_text="Aktuell sind keine Spenden offen." %}
       {% include "rental/partials/dashboard_lane.html" with title="Klärung nötig" css_class="clarification" cards=clarification empty_text="Keine offenen Klärfälle." %}
+      {% include "rental/partials/dashboard_lane.html" with title="Kürzlich abgeschlossen" css_class="completed" cards=recent_completed empty_text="Noch keine kürzlich abgeschlossenen Vorgänge." %}
     </section>
 
     <section class="card">
