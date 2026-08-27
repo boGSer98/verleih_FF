@@ -91,11 +91,11 @@ Aufgaben:
 
 1. Dashboard-Seite außerhalb des Django-Admins erstellen.
 2. Karten/Listen für:
-   - Heute abzuholen
-   - Heute zurückzugeben
-   - Offene Spenden
-   - Klärung nötig
-   - Kürzlich abgeschlossene Vorgänge
+   - Heute abzuholen – Status: umgesetzt.
+   - Heute zurückzugeben – Status: umgesetzt.
+   - Offene Spenden – Status: umgesetzt.
+   - Klärung nötig – Status: umgesetzt.
+   - Kürzlich abgeschlossene Vorgänge – Status: umgesetzt mit den letzten fünf abgeschlossenen Vorgängen.
 3. Suchfunktion für Vorgangsnummer, Entleiher und Artikel.
 4. Rollen-/Login-Schutz aktivieren.
 5. Mobile Ansicht optimieren.
@@ -217,7 +217,7 @@ Aufgaben:
 2. Zahlungsart ergänzen. Status: umgesetzt mit Bar, Überweisung, PayPal und Sonstig.
 3. Zahlungsnotiz und Eingangsdatum speichern. Status: umgesetzt.
 4. Offene Spenden im Dashboard anzeigen. Status: umgesetzt mit Formular „Spendenentscheidung speichern“.
-5. Abschluss blockieren oder warnen, wenn Spende offen ist.
+5. Abschluss blockieren oder warnen, wenn Spende offen ist. Status: umgesetzt als blockierender Statuswechsel bei offener Spendenentscheidung.
 
 Abnahmekriterien:
 

@@ -64,6 +64,7 @@ def dashboard(request):
     ).order_by('reserved_until', 'number')
     donation_open = cases.filter(status=RentalCase.Status.DONATION_OPEN).order_by('reserved_until', 'number')
     clarification = cases.filter(status=RentalCase.Status.CLARIFICATION).order_by('reserved_until', 'number')
+    recent_completed = cases.filter(status=RentalCase.Status.COMPLETED).order_by('-closed_at', '-updated_at', '-number')
 
     active_statuses = [
         RentalCase.Status.REQUEST,
@@ -90,6 +91,7 @@ def dashboard(request):
         'returns_today': [_case_card(case) for case in returns_today],
         'donation_open': [_case_card(case) for case in donation_open[:10]],
         'clarification': [_case_card(case) for case in clarification[:10]],
+        'recent_completed': [_case_card(case) for case in recent_completed[:5]],
         'status_counts': status_counts,
         'status_choices': RentalCase.Status.choices,
         'expected_donation_total': donation_totals['expected'] or 0,

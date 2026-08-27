@@ -239,6 +239,9 @@ class DashboardViewTests(TestCase):
             end=today_start - timezone.timedelta(days=1),
         )
         clarification = self._create_case(status=RentalCase.Status.CLARIFICATION)
+        completed = self._create_case(status=RentalCase.Status.COMPLETED)
+        completed.closed_at = timezone.now()
+        completed.save(update_fields=['closed_at', 'updated_at'])
         self.client.force_login(self.user)
 
         response = self.client.get(reverse('rental:dashboard'))
@@ -250,10 +253,12 @@ class DashboardViewTests(TestCase):
         self.assertIn('Rücknahme heute', content)
         self.assertIn('Spende offen', content)
         self.assertIn('Klärung nötig', content)
+        self.assertIn('Kürzlich abgeschlossen', content)
         self.assertIn(pickup.number, content)
         self.assertIn(returned_due.number, content)
         self.assertIn(donation.number, content)
         self.assertIn(clarification.number, content)
+        self.assertIn(completed.number, content)
         self.assertIn('min-height: 54px', content)
         self.assertIn(reverse('rental:reservation_document_send', args=[pickup.pk]), content)
         self.assertIn('Reservierung mailen', content)
