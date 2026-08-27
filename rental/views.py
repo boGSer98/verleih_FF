@@ -1,7 +1,8 @@
 import base64
 import binascii
+import calendar as calendar_module
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -245,26 +246,62 @@ def case_detail(request, pk):
     return render(request, 'rental/case_detail.html', context)
 
 
+def _calendar_month_from_request(request):
+    today = timezone.localdate()
+    try:
+        year = int(request.GET.get('year', today.year))
+        month = int(request.GET.get('month', today.month))
+        current_month = date(year, month, 1)
+    except (TypeError, ValueError):
+        current_month = date(today.year, today.month, 1)
+    return current_month
+
+
+def _shift_month(month_date, months):
+    month_index = month_date.month - 1 + months
+    year = month_date.year + month_index // 12
+    month = month_index % 12 + 1
+    return date(year, month, 1)
+
+
 @login_required
 @permission_required('rental.view_rentalcase', raise_exception=True)
 def calendar(request):
-    start = timezone.localdate() - timedelta(days=7)
-    end = timezone.localdate() + timedelta(days=45)
-    cases = RentalCase.objects.select_related('borrower').prefetch_related('items__product').filter(
-        reserved_from__date__lte=end,
-        reserved_until__date__gte=start,
-    ).exclude(status__in=[RentalCase.Status.CANCELLED, RentalCase.Status.COMPLETED]).order_by('reserved_from', 'number')
-    days = []
-    current = start
-    while current <= end:
-        day_cases = [
-            case for case in cases
-            if timezone.localtime(case.reserved_from).date() <= current <= timezone.localtime(case.reserved_until).date()
-        ]
-        days.append({'date': current, 'cases': [_case_card(case) for case in day_cases]})
-        current += timedelta(days=1)
+    current_month = _calendar_month_from_request(request)
+    previous_month = _shift_month(current_month, -1)
+    next_month = _shift_month(current_month, 1)
+    month_grid = calendar_module.Calendar(firstweekday=0).monthdatescalendar(current_month.year, current_month.month)
+    visible_start = month_grid[0][0]
+    visible_end = month_grid[-1][-1]
+    cases = list(
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product').filter(
+            reserved_from__date__lte=visible_end,
+            reserved_until__date__gte=visible_start,
+        ).exclude(status__in=[RentalCase.Status.CANCELLED, RentalCase.Status.COMPLETED]).order_by('reserved_from', 'number')
+    )
+    weeks = []
+    today = timezone.localdate()
+    for week in month_grid:
+        week_days = []
+        for current_day in week:
+            day_cases = [
+                case for case in cases
+                if timezone.localtime(case.reserved_from).date() <= current_day <= timezone.localtime(case.reserved_until).date()
+            ]
+            week_days.append({
+                'date': current_day,
+                'is_current_month': current_day.month == current_month.month,
+                'is_today': current_day == today,
+                'cases': [_case_card(case) for case in day_cases],
+            })
+        weeks.append(week_days)
     return render(request, 'rental/calendar.html', {
-        'days': days,
+        'current_month': current_month,
+        'previous_month': previous_month,
+        'next_month': next_month,
+        'weekdays': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+        'weeks': weeks,
+        'month_cases': [_case_card(case) for case in cases],
         'dashboard_url': reverse('rental:dashboard'),
         'case_create_url': reverse('rental:case_create'),
     })
