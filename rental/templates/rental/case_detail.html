@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vorgang {{ card.case.number }}</title>
+  <style>
+    :root { --bg:#f4f6f8; --card:#fff; --text:#18212f; --muted:#5d6b7c; --primary:#1955a6; --danger:#a01919; --ok:#1b7f3a; --warn:#a65f00; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); }
+    header { padding:1rem; background:linear-gradient(135deg,#163f7a,#1d6fba); color:#fff; }
+    header h1 { margin:0 0 .25rem; font-size:clamp(1.35rem,5vw,2rem); }
+    header p { margin:.2rem 0 0; opacity:.92; }
+    main { width:min(1120px,100%); margin:0 auto; padding:1rem; }
+    .grid { display:grid; gap:.85rem; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+    .button-row { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:1rem; }
+    .button, button { min-height:54px; border:0; border-radius:999px; padding:.85rem 1rem; font:inherit; font-weight:800; text-decoration:none; display:flex; align-items:center; justify-content:center; background:var(--primary); color:white; cursor:pointer; }
+    .button.secondary, button.secondary { background:#e7eef8; color:var(--primary); }
+    .button.warn { background:#fff2d9; color:#8a4b00; }
+    .card { background:var(--card); border-radius:18px; padding:1rem; margin-bottom:1rem; box-shadow:0 2px 10px rgb(12 31 56 / .08); }
+    .case-meta, .doc-grid { display:flex; flex-wrap:wrap; gap:.45rem; margin:.55rem 0; }
+    .pill { background:#edf2f7; border-radius:999px; padding:.25rem .6rem; font-size:.9rem; }
+    .status { background:#e8f3ff; color:#164a83; font-weight:800; }
+    .muted { color:var(--muted); }
+    .item { border:1px solid #dde5ee; border-radius:14px; padding:.85rem; margin:.65rem 0; background:#fbfdff; }
+    .item h3 { margin:.1rem 0 .35rem; font-size:1rem; }
+    dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:.35rem .7rem; margin:.5rem 0; }
+    dt { color:var(--muted); font-weight:800; }
+    dd { margin:0; }
+    .inline-form { margin:0; }
+    .photo-list { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+    .photo { border:1px solid #dde5ee; border-radius:14px; padding:.5rem; background:#fbfdff; }
+    .photo img { width:100%; height:auto; border-radius:10px; display:block; }
+    @media (max-width:640px) { main { padding:.75rem; } .grid, .button-row { grid-template-columns:1fr; } .card { border-radius:16px; padding:.9rem; } dl { grid-template-columns:1fr; } .button, button { width:100%; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vorgang {{ card.case.number }}</h1>
+    <p>{{ card.case.borrower.name }} · {{ card.case.reserved_from|date:"d.m.Y H:i" }} – {{ card.case.reserved_until|date:"d.m.Y H:i" }}</p>
+  </header>
+  <main>
+    <nav class="button-row" aria-label="Vorgangsaktionen">
+      <a class="button secondary" href="{{ dashboard_url }}">Zum Dashboard</a>
+      <a class="button secondary" href="{{ calendar_url }}">Zum Kalender</a>
+      <a class="button secondary" href="{{ admin_url }}">Im Admin öffnen</a>
+    </nav>
+
+    <section class="card">
+      <h2>Übersicht</h2>
+      <div class="case-meta">
+        <span class="pill status">{{ card.case.get_status_display }}</span>
+        <span class="pill">{{ card.item_summary }}</span>
+      </div>
+      <dl>
+        <dt>Entleiher</dt><dd>{{ card.case.borrower.name }}</dd>
+        <dt>Organisation</dt><dd>{{ card.case.borrower.organization|default:"Keine Organisation erfasst" }}</dd>
+        <dt>E-Mail</dt><dd>{{ card.case.borrower.email }}</dd>
+        <dt>Telefon</dt><dd>{{ card.case.borrower.phone|default:"Nicht erfasst" }}</dd>
+        <dt>Erwartete Spende</dt><dd>{{ card.case.expected_donation }} €</dd>
+        <dt>Erhaltene Spende</dt><dd>{{ card.case.received_donation }} €</dd>
+      </dl>
+      {% if card.case.notes %}<p><strong>Notizen:</strong><br>{{ card.case.notes|linebreaksbr }}</p>{% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Nächste Aktionen</h2>
+      <div class="button-row">
+        {% if card.case.status == "reserved" or card.case.status == "prepared" %}<a class="button" href="{{ card.handover_url }}">Übergabe starten</a>{% endif %}
+        {% if card.case.status == "handed_over" or card.case.status == "donation_open" or card.case.status == "donation_received" %}<a class="button" href="{{ card.return_url }}">Rücknahme starten</a>{% endif %}
+        <a class="button secondary" href="{{ card.reservation_document_url }}">Reservierungs-PDF</a>
+        <a class="button secondary" href="{{ card.handover_document_url }}">Übergabe-PDF</a>
+        <a class="button secondary" href="{{ card.return_document_url }}">Rücknahme-PDF</a>
+        <a class="button secondary" href="{{ card.closing_document_url }}">Abschluss-PDF</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Artikelpositionen</h2>
+      {% for item in card.case.items.all %}
+        <article class="item">
+          <h3>{{ item.quantity }} × {{ item.product.name }}</h3>
+          <p class="muted">{{ item.product.category.name }}{% if item.product.inventory_number %} · Inventar: {{ item.product.inventory_number }}{% endif %}{% if item.product.storage_location %} · Lagerort: {{ item.product.storage_location }}{% endif %}</p>
+          {% if item.product.accessories.all %}
+            <p><strong>Zubehör:</strong> {% for accessory in item.product.accessories.all %}{{ accessory.quantity }} × {{ accessory.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+          {% endif %}
+          {% if item.handover_condition %}<p><strong>Übergabe:</strong><br>{{ item.handover_condition|linebreaksbr }}</p>{% endif %}
+          {% if item.return_condition %}<p><strong>Rücknahme:</strong><br>{{ item.return_condition|linebreaksbr }}</p>{% endif %}
+          {% if item.missing or item.damaged %}<p><span class="pill">Klärung: {% if item.missing %}fehlt{% endif %}{% if item.missing and item.damaged %}, {% endif %}{% if item.damaged %}beschädigt{% endif %}</span></p>{% endif %}
+        </article>
+      {% empty %}
+        <p class="muted">Noch keine Artikel erfasst.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card">
+      <h2>Dokumente & Mailversand</h2>
+      <div class="grid">
+        <article>
+          <h3>Reservierung</h3>
+          <div class="button-row">
+            <a class="button secondary" href="{{ card.reservation_document_url }}">PDF erzeugen/öffnen</a>
+            <form class="inline-form" method="post" action="{{ card.reservation_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
+          </div>
+        </article>
+        <article>
+          <h3>Übergabe</h3>
+          <div class="button-row">
+            <a class="button secondary" href="{{ card.handover_document_url }}">PDF erzeugen/öffnen</a>
+            <form class="inline-form" method="post" action="{{ card.handover_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
+          </div>
+        </article>
+        <article>
+          <h3>Rücknahme</h3>
+          <div class="button-row">
+            <a class="button secondary" href="{{ card.return_document_url }}">PDF erzeugen/öffnen</a>
+            <form class="inline-form" method="post" action="{{ card.return_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
+          </div>
+        </article>
+        <article>
+          <h3>Abschluss</h3>
+          <div class="button-row">
+            <a class="button secondary" href="{{ card.closing_document_url }}">PDF erzeugen/öffnen</a>
+            <form class="inline-form" method="post" action="{{ card.closing_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    {% if latest_handover_protocol or latest_return_protocol %}
+    <section class="card">
+      <h2>Protokollnotizen</h2>
+      {% if latest_handover_protocol %}<p><strong>Übergabe:</strong><br>{{ latest_handover_protocol.notes|default:"Keine Notiz"|linebreaksbr }}</p>{% endif %}
+      {% if latest_return_protocol %}<p><strong>Rücknahme:</strong><br>{{ latest_return_protocol.notes|default:"Keine Notiz"|linebreaksbr }}</p>{% endif %}
+      {% if latest_return_protocol.photos.all %}
+        <h3>Rücknahmefotos</h3>
+        <div class="photo-list">
+        {% for photo in latest_return_protocol.photos.all %}
+          <figure class="photo">
+            <img src="{{ photo.image.url }}" alt="Rücknahmefoto {{ forloop.counter }}">
+            {% if photo.caption %}<figcaption class="muted">{{ photo.caption }}</figcaption>{% endif %}
+          </figure>
+        {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

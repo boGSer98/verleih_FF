@@ -101,6 +101,7 @@ Aufgaben:
 5. Mobile Ansicht optimieren.
 6. Web-Vorgangsanlage für Verwaltung außerhalb des Django-Admins. Status: umgesetzt mit Entleiherauswahl/-neuanlage, Datums-/HH:MM-Zeitfeldern und bis zu fünf Artikelpositionen.
 7. Kalenderübersicht für aktuelle Vorgänge. Status: umgesetzt als mobile Kalenderseite mit aktiven Vorgängen.
+8. Vorgangsdetail außerhalb des Django-Admins. Status: umgesetzt mit mobilen Aktionsbuttons, Artikeln, Dokumenten-/Mailaktionen, Protokollnotizen und Rücknahmefotos.
 
 Abnahmekriterien:
 

@@ -30,7 +30,8 @@ def _case_card(rental_case):
     )
     return {
         'case': rental_case,
-        'url': _admin_change_url(rental_case),
+        'url': reverse('rental:case_detail', args=[rental_case.pk]),
+        'admin_url': _admin_change_url(rental_case),
         'handover_url': reverse('rental:handover', args=[rental_case.pk]),
         'return_url': reverse('rental:return', args=[rental_case.pk]),
         'reservation_document_url': reverse('rental:reservation_document', args=[rental_case.pk]),
@@ -208,6 +209,40 @@ def case_create(request):
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/case_form.html', context)
+
+
+@login_required
+@permission_required('rental.view_rentalcase', raise_exception=True)
+def case_detail(request, pk):
+    rental_case = get_object_or_404(
+        RentalCase.objects.select_related('borrower').prefetch_related(
+            'items__product__category',
+            'items__product__accessories',
+            'documents',
+            'protocols__photos',
+        ),
+        pk=pk,
+    )
+    documents_by_type = {document.document_type: document for document in rental_case.documents.all()}
+    latest_handover_protocol = next(
+        (protocol for protocol in rental_case.protocols.all() if protocol.protocol_type == Protocol.ProtocolType.HANDOVER),
+        None,
+    )
+    latest_return_protocol = next(
+        (protocol for protocol in rental_case.protocols.all() if protocol.protocol_type == Protocol.ProtocolType.RETURN),
+        None,
+    )
+    context = {
+        'card': _case_card(rental_case),
+        'documents_by_type': documents_by_type,
+        'latest_handover_protocol': latest_handover_protocol,
+        'latest_return_protocol': latest_return_protocol,
+        'dashboard_url': reverse('rental:dashboard'),
+        'calendar_url': reverse('rental:calendar'),
+        'admin_url': _admin_change_url(rental_case),
+        'document_types': Document.DocumentType,
+    }
+    return render(request, 'rental/case_detail.html', context)
 
 
 @login_required
