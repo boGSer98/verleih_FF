@@ -6,11 +6,12 @@ from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
+from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
 from .pdf import create_or_replace_document
 from .permissions import (
     GROUP_ADMIN,
@@ -310,6 +311,52 @@ class DashboardViewTests(TestCase):
         self.assertIn('name="payment_method"', content)
         self.assertIn('Überweisung', content)
         self.assertIn('name="donation_note"', content)
+        self.assertIn(reverse('rental:case_create'), content)
+        self.assertIn(reverse('rental:calendar'), content)
+
+    def test_case_create_page_uses_minute_time_inputs_and_creates_reserved_case(self):
+        manager = get_user_model().objects.create_user(username='verwaltung', password='testpass123')
+        manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
+        start = timezone.localtime(timezone.now()).replace(hour=10, minute=15, second=0, microsecond=0)
+        end = start + timezone.timedelta(hours=3)
+        self.client.force_login(manager)
+
+        response = self.client.get(reverse('rental:case_create'))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('type="time"', content)
+        self.assertIn('step="60"', content)
+        self.assertIn('Format: HH:MM', content)
+
+        response = self.client.post(reverse('rental:case_create'), {
+            'borrower_name': 'Web Entleiher',
+            'borrower_email': 'web@example.org',
+            'reserved_from_date': start.date().isoformat(),
+            'reserved_from_time': start.strftime('%H:%M'),
+            'reserved_until_date': end.date().isoformat(),
+            'reserved_until_time': end.strftime('%H:%M'),
+            'product_1': str(self.product.pk),
+            'quantity_1': '2',
+            'notes': 'per Webseite angelegt',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        rental_case = RentalCase.objects.get(borrower__name='Web Entleiher')
+        self.assertEqual(rental_case.status, RentalCase.Status.RESERVED)
+        self.assertEqual(rental_case.reserved_from.second, 0)
+        self.assertEqual(rental_case.items.get().quantity, 2)
+
+    def test_calendar_shows_active_cases(self):
+        case = self._create_case(status=RentalCase.Status.RESERVED)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:calendar'))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('Kalenderübersicht', content)
+        self.assertIn(case.number, content)
+        self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
 
     def test_dashboard_search_finds_case_by_number_borrower_and_product(self):
         matching = self._create_case(status=RentalCase.Status.RESERVED)
@@ -582,6 +629,9 @@ class ReturnViewTests(TestCase):
         self.assertIn('data-step="2" disabled', content)
         self.assertIn('touch-action:none', content)
         self.assertIn('Tischplatte', content)
+        self.assertIn('type="file"', content)
+        self.assertIn('accept="image/*"', content)
+        self.assertIn('capture="environment"', content)
 
     def test_return_post_without_issues_sets_returned_and_creates_protocol(self):
         self.client.force_login(self.user)
@@ -600,6 +650,20 @@ class ReturnViewTests(TestCase):
         self.assertEqual(protocol.notes, 'Rücknahme am Vereinsheim')
         self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
         self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
+
+    def test_return_post_stores_uploaded_damage_photos(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile('schaden.jpg', b'fake-image-bytes', content_type='image/jpeg')
+        data = self._valid_post_data(photo_caption='Delle an Tischplatte')
+        data['return_photos'] = upload
+
+        response = self.client.post(reverse('rental:return', args=[self.case.pk]), data)
+
+        self.assertEqual(response.status_code, 302)
+        protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.RETURN)
+        photo = protocol.photos.get()
+        self.assertEqual(photo.caption, 'Delle an Tischplatte')
+        self.assertTrue(photo.image.name.startswith('protocol-photos/'))
 
     def test_return_post_with_damage_sets_clarification(self):
         self.client.force_login(self.user)

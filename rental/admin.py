@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .emailing import send_document_email
-from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, RentalCase, RentalCaseItem
+from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
 from .pdf import create_or_replace_document
 
 
@@ -46,6 +46,12 @@ class BorrowerAdmin(admin.ModelAdmin):
 class RentalCaseItemInline(admin.TabularInline):
     model = RentalCaseItem
     extra = 1
+
+
+class ProtocolPhotoInline(admin.TabularInline):
+    model = ProtocolPhoto
+    extra = 0
+    readonly_fields = ['created_at', 'updated_at']
 
 
 class ProtocolInline(admin.TabularInline):
@@ -187,6 +193,13 @@ class ProtocolAdmin(admin.ModelAdmin):
     list_display = ['rental_case', 'protocol_type', 'performed_at', 'performed_by']
     list_filter = ['protocol_type', 'performed_at']
     search_fields = ['rental_case__number', 'rental_case__borrower__name']
+    inlines = [ProtocolPhotoInline]
+
+
+@admin.register(ProtocolPhoto)
+class ProtocolPhotoAdmin(admin.ModelAdmin):
+    list_display = ['protocol', 'caption', 'created_at']
+    search_fields = ['protocol__rental_case__number', 'caption']
 
 
 @admin.register(Document)

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vorgang anlegen</title>
+  <style>
+    :root { --bg:#f4f6f8; --card:#fff; --text:#18212f; --muted:#5d6b7c; --primary:#1955a6; --danger:#a01919; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); }
+    header { padding:1rem; background:linear-gradient(135deg,#163f7a,#1d6fba); color:#fff; }
+    header h1 { margin:0 0 .25rem; font-size:clamp(1.35rem,5vw,2rem); }
+    main { width:min(960px,100%); margin:0 auto; padding:1rem; }
+    .card { background:var(--card); border-radius:18px; padding:1rem; margin-bottom:1rem; box-shadow:0 2px 10px rgb(12 31 56 / .08); }
+    .grid { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+    .item-row { display:grid; gap:.6rem; grid-template-columns:minmax(0,1fr) 120px; margin-bottom:.65rem; }
+    label { display:grid; gap:.25rem; font-weight:700; color:var(--muted); }
+    input, select, textarea { width:100%; min-height:48px; border:1px solid #bcc8d6; border-radius:12px; padding:.75rem; font:inherit; color:var(--text); background:#fff; }
+    input[type="time"] { min-width:7.5rem; }
+    textarea { min-height:90px; resize:vertical; }
+    .button-row { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    button, .button { min-height:54px; border:0; border-radius:999px; padding:.85rem 1rem; font-weight:800; font:inherit; text-decoration:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .primary { background:var(--primary); color:white; }
+    .secondary { background:#e7eef8; color:var(--primary); }
+    .errors { border-left:4px solid var(--danger); background:#fff1f1; color:var(--danger); }
+    .muted { color:var(--muted); }
+    @media (max-width:640px) { main { padding:.75rem; } .card { border-radius:16px; padding:.9rem; } .grid, .item-row, .button-row { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vorgang anlegen</h1>
+    <p>Mobile Webmaske für Reservierung, Entleiher und Artikelpositionen.</p>
+  </header>
+  <main>
+    {% if errors %}<section class="card errors"><strong>Bitte prüfen:</strong><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></section>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <section class="card">
+        <h2>1. Entleiher</h2>
+        <label>Vorhandenen Entleiher wählen
+          <select name="borrower">
+            <option value="">Neuen Entleiher erfassen</option>
+            {% for borrower in borrowers %}<option value="{{ borrower.pk }}" {% if values.borrower == borrower.pk|stringformat:"s" %}selected{% endif %}>{{ borrower.name }}{% if borrower.organization %} · {{ borrower.organization }}{% endif %}</option>{% endfor %}
+          </select>
+        </label>
+        <p class="muted">Wenn kein vorhandener Entleiher gewählt wird, werden die folgenden Daten neu angelegt.</p>
+        <div class="grid">
+          <label>Name <input name="borrower_name" autocomplete="name" value="{{ values.borrower_name }}"></label>
+          <label>Organisation <input name="borrower_organization" value="{{ values.borrower_organization }}"></label>
+          <label>E-Mail <input name="borrower_email" type="email" autocomplete="email" value="{{ values.borrower_email }}"></label>
+          <label>Telefon <input name="borrower_phone" type="tel" autocomplete="tel" value="{{ values.borrower_phone }}"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. Zeitraum</h2>
+        <p class="muted">Uhrzeiten werden bewusst nur minutengenau im Format HH:MM erfasst.</p>
+        <div class="grid">
+          <label>Beginn Datum <input required type="date" name="reserved_from_date" value="{{ values.reserved_from_date }}"></label>
+          <label>Beginn Uhrzeit <input required type="time" name="reserved_from_time" step="60" value="{{ values.reserved_from_time }}" aria-describedby="time-format"></label>
+          <label>Ende Datum <input required type="date" name="reserved_until_date" value="{{ values.reserved_until_date }}"></label>
+          <label>Ende Uhrzeit <input required type="time" name="reserved_until_time" step="60" value="{{ values.reserved_until_time }}"></label>
+        </div>
+        <p id="time-format" class="muted">Format: HH:MM, keine sekundengenaue Betrachtung.</p>
+      </section>
+
+      <section class="card">
+        <h2>3. Artikelpositionen</h2>
+        {% for index in "12345" %}
+          <div class="item-row">
+            <label>Artikel {{ index }}
+              <select name="product_{{ index }}">
+                <option value="">---</option>
+                {% for product in products %}<option value="{{ product.pk }}">{{ product.category.name }} · {{ product.name }} · verfügbarer Bestand: {{ product.stock_quantity }}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Menge <input type="number" name="quantity_{{ index }}" min="1" value="1" inputmode="numeric"></label>
+          </div>
+        {% endfor %}
+      </section>
+
+      <section class="card">
+        <h2>4. Notizen</h2>
+        <textarea name="notes" placeholder="Hinweise zur Reservierung, Abholung oder Rückgabe">{{ values.notes }}</textarea>
+      </section>
+
+      <div class="button-row">
+        <button class="primary" type="submit">Vorgang speichern</button>
+        <a class="button secondary" href="{{ dashboard_url }}">Zur Übersicht</a>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

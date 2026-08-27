@@ -66,6 +66,10 @@ def render_document_pdf(rental_case, document_type, *, request=None):
         'protocol': protocol,
         'borrower_signature_data_url': _signature_data_url(protocol.borrower_signature) if protocol else '',
         'club_signature_data_url': _signature_data_url(protocol.club_signature) if protocol else '',
+        'protocol_photos': [
+            {'caption': photo.caption, 'data_url': _signature_data_url(photo.image)}
+            for photo in protocol.photos.all()
+        ] if protocol else [],
     }
     html = render_to_string(template_name, context=context, request=request)
     base_url = request.build_absolute_uri('/') if request else None

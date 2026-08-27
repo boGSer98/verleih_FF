@@ -1,6 +1,7 @@
 import base64
 import binascii
 import uuid
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -14,7 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .emailing import send_document_email
-from .models import Document, Protocol, RentalCase
+from .models import Borrower, Document, Product, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
 from .pdf import create_or_replace_document, document_filename
 
 
@@ -112,11 +113,126 @@ def dashboard(request):
         'received_donation_total': donation_totals['received'] or 0,
         'donation_decision_choices': RentalCase.DonationDecision.choices,
         'donation_payment_method_choices': RentalCase.DonationPaymentMethod.choices,
+        'case_create_url': reverse('rental:case_create'),
+        'calendar_url': reverse('rental:calendar'),
         'admin_case_add_url': reverse('admin:rental_rentalcase_add'),
         'admin_case_list_url': reverse('admin:rental_rentalcase_changelist'),
         'admin_product_list_url': reverse('admin:rental_product_changelist'),
     }
     return render(request, 'rental/dashboard.html', context)
+
+
+def _parse_local_datetime(date_value, time_value, label):
+    try:
+        naive = datetime.strptime(f'{date_value} {time_value}', '%Y-%m-%d %H:%M')
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f'{label} muss im Format Datum und HH:MM angegeben werden.') from exc
+    return timezone.make_aware(naive, timezone.get_current_timezone())
+
+
+@login_required
+@permission_required(('rental.add_rentalcase', 'rental.add_borrower', 'rental.add_rentalcaseitem', 'rental.view_product'), raise_exception=True)
+def case_create(request):
+    products = Product.objects.filter(active=True).select_related('category').order_by('category__name', 'name')
+    borrowers = Borrower.objects.order_by('name')
+    values = {}
+    errors = []
+
+    if request.method == 'POST':
+        values = request.POST.copy()
+        try:
+            borrower_id = request.POST.get('borrower')
+            borrower = None
+            borrower_data = None
+            if borrower_id:
+                borrower = Borrower.objects.get(pk=borrower_id)
+            else:
+                borrower_name = request.POST.get('borrower_name', '').strip()
+                borrower_email = request.POST.get('borrower_email', '').strip()
+                if not borrower_name or not borrower_email:
+                    raise ValueError('Entleiher-Name und E-Mail sind erforderlich, wenn kein vorhandener Entleiher gewählt ist.')
+                borrower_data = {
+                    'name': borrower_name,
+                    'organization': request.POST.get('borrower_organization', '').strip(),
+                    'email': borrower_email,
+                    'phone': request.POST.get('borrower_phone', '').strip(),
+                }
+
+            reserved_from = _parse_local_datetime(request.POST.get('reserved_from_date'), request.POST.get('reserved_from_time'), 'Beginn')
+            reserved_until = _parse_local_datetime(request.POST.get('reserved_until_date'), request.POST.get('reserved_until_time'), 'Ende')
+            product_rows = []
+            for index in range(1, 6):
+                product_id = request.POST.get(f'product_{index}')
+                quantity_raw = request.POST.get(f'quantity_{index}', '').strip()
+                if not product_id:
+                    continue
+                try:
+                    quantity = int(quantity_raw or '1')
+                except ValueError as exc:
+                    raise ValueError(f'Menge in Position {index} muss eine ganze Zahl sein.') from exc
+                product_rows.append((Product.objects.get(pk=product_id), quantity))
+            if not product_rows:
+                raise ValueError('Mindestens eine Artikelposition ist erforderlich.')
+
+            with transaction.atomic():
+                if borrower is None:
+                    if borrower_data is None:
+                        raise ValueError('Entleiherdaten fehlen.')
+                    borrower = Borrower.objects.create(**borrower_data)
+                rental_case = RentalCase.objects.create(
+                    borrower=borrower,
+                    reserved_from=reserved_from,
+                    reserved_until=reserved_until,
+                    status=RentalCase.Status.RESERVED,
+                    notes=request.POST.get('notes', '').strip(),
+                )
+                rental_case.full_clean()
+                for product, quantity in product_rows:
+                    item = RentalCaseItem(rental_case=rental_case, product=product, quantity=quantity)
+                    item.full_clean()
+                    item.save()
+            messages.success(request, f'Vorgang {rental_case.number} wurde angelegt.')
+            return redirect('rental:dashboard')
+        except (Borrower.DoesNotExist, Product.DoesNotExist):
+            errors.append('Ausgewählter Entleiher oder Artikel wurde nicht gefunden.')
+        except ValueError as exc:
+            errors.append(str(exc))
+        except Exception as exc:
+            errors.append(str(exc))
+
+    context = {
+        'products': products,
+        'borrowers': borrowers,
+        'values': values,
+        'errors': errors,
+        'dashboard_url': reverse('rental:dashboard'),
+    }
+    return render(request, 'rental/case_form.html', context)
+
+
+@login_required
+@permission_required('rental.view_rentalcase', raise_exception=True)
+def calendar(request):
+    start = timezone.localdate() - timedelta(days=7)
+    end = timezone.localdate() + timedelta(days=45)
+    cases = RentalCase.objects.select_related('borrower').prefetch_related('items__product').filter(
+        reserved_from__date__lte=end,
+        reserved_until__date__gte=start,
+    ).exclude(status__in=[RentalCase.Status.CANCELLED, RentalCase.Status.COMPLETED]).order_by('reserved_from', 'number')
+    days = []
+    current = start
+    while current <= end:
+        day_cases = [
+            case for case in cases
+            if timezone.localtime(case.reserved_from).date() <= current <= timezone.localtime(case.reserved_until).date()
+        ]
+        days.append({'date': current, 'cases': [_case_card(case) for case in day_cases]})
+        current += timedelta(days=1)
+    return render(request, 'rental/calendar.html', {
+        'days': days,
+        'dashboard_url': reverse('rental:dashboard'),
+        'case_create_url': reverse('rental:case_create'),
+    })
 
 
 def _decode_signature(data_url, label):
@@ -295,6 +411,11 @@ def return_case(request, pk):
                 protocol.borrower_signature.save(borrower_signature.name, borrower_signature, save=False)
                 protocol.club_signature.save(club_signature.name, club_signature, save=False)
                 protocol.save(update_fields=['borrower_signature', 'club_signature', 'updated_at'])
+                photo_caption = request.POST.get('photo_caption', '').strip()
+                for uploaded in request.FILES.getlist('return_photos'):
+                    if uploaded.content_type and not uploaded.content_type.startswith('image/'):
+                        continue
+                    ProtocolPhoto.objects.create(protocol=protocol, image=uploaded, caption=photo_caption)
 
                 target_status = RentalCase.Status.CLARIFICATION if has_issue else RentalCase.Status.RETURNED
                 rental_case.transition_to(target_status)

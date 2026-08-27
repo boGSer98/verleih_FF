@@ -14,6 +14,7 @@ RENTAL_MODELS = [
     'productaccessory',
     'productcategory',
     'protocol',
+    'protocolphoto',
     'rentalcase',
     'rentalcaseitem',
 ]
@@ -31,6 +32,7 @@ GROUP_PERMISSION_MATRIX = {
         'productaccessory': ['view'],
         'productcategory': ['view'],
         'protocol': ['add', 'view'],
+        'protocolphoto': ['add', 'view'],
         'rentalcase': ['change', 'view'],
         'rentalcaseitem': ['change', 'view'],
     },

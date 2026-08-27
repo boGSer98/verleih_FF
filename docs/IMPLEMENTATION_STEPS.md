@@ -83,7 +83,7 @@ Abnahmekriterien:
 
 ## Phase 3 – Prozess-Dashboard
 
-Status: erste mobile-optimierte Tagesübersicht umgesetzt.
+Status: erste mobile-optimierte Tagesübersicht mit Suche, Kalenderlink und Web-Vorgangsanlage umgesetzt.
 
 Ziel: Helfer sehen sofort, was heute zu tun ist.
 
@@ -99,6 +99,8 @@ Aufgaben:
 3. Suchfunktion für Vorgangsnummer, Entleiher und Artikel. Status: umgesetzt mit Dashboard-Suchfeld und eigener Ergebnisliste.
 4. Rollen-/Login-Schutz aktivieren.
 5. Mobile Ansicht optimieren.
+6. Web-Vorgangsanlage für Verwaltung außerhalb des Django-Admins. Status: umgesetzt mit Entleiherauswahl/-neuanlage, Datums-/HH:MM-Zeitfeldern und bis zu fünf Artikelpositionen.
+7. Kalenderübersicht für aktuelle Vorgänge. Status: umgesetzt als mobile Kalenderseite mit aktiven Vorgängen.
 
 Abnahmekriterien:
 
@@ -130,7 +132,7 @@ Abnahmekriterien:
 
 ## Phase 5 – Mobile Rücknahme
 
-Status: erste geführte mobile Rücknahmemaske mit Abschnittsbestätigungen umgesetzt.
+Status: erste geführte mobile Rücknahmemaske mit Abschnittsbestätigungen und optionaler Fotodokumentation umgesetzt.
 
 Ziel: Rücknahme kann vor Ort vollständig dokumentiert werden.
 
@@ -145,7 +147,8 @@ Aufgaben:
 3. Bemerkungen und Schadenbeträge erfassen.
 4. Unterschriften erfassen.
 5. Rücknahmeprotokoll speichern.
-6. Status auf `Zurückgenommen` oder `Klärung nötig` setzen.
+6. Rücknahmefotos für Schäden/Verschmutzungen hochladen und im Protokoll-PDF ausgeben. Status: umgesetzt als optionale Protokollfotos.
+7. Status auf `Zurückgenommen` oder `Klärung nötig` setzen.
 
 Abnahmekriterien:
 

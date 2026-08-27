@@ -22,6 +22,9 @@
     .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
     .signature-box { border: 1px solid #d4dde8; min-height: 95px; padding: 8px; }
     .signature-box img { max-height: 68px; max-width: 100%; display: block; margin-top: 6px; }
+    .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+    .photo { border: 1px solid #d4dde8; border-radius: 8px; padding: 8px; break-inside: avoid; }
+    .photo img { max-width: 100%; max-height: 170px; display: block; margin-bottom: 6px; object-fit: contain; }
     footer { border-top: 1px solid #d4dde8; color: #5d6b7c; font-size: 9pt; margin-top: 28px; padding-top: 8px; }
   </style>
 </head>
@@ -102,6 +105,18 @@
       <strong>Protokollnotizen:</strong><br>
       {{ protocol.notes|linebreaksbr }}
     </div>
+  {% endif %}
+
+  {% if protocol_photos %}
+    <h2>Fotodokumentation</h2>
+    <section class="photos">
+      {% for photo in protocol_photos %}
+        <div class="photo">
+          <img src="{{ photo.data_url }}" alt="Rücknahmefoto {{ forloop.counter }}">
+          <div class="meta">{{ photo.caption|default:"Foto zur Rücknahme" }}</div>
+        </div>
+      {% endfor %}
+    </section>
   {% endif %}
 
   <h2>Unterschriften</h2>
