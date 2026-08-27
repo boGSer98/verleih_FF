@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import FileResponse, HttpResponse
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -48,7 +48,18 @@ def _case_card(rental_case):
 @login_required
 def dashboard(request):
     today = timezone.localdate()
+    search_query = request.GET.get('q', '').strip()
     cases = RentalCase.objects.select_related('borrower').prefetch_related('items__product')
+
+    search_results = RentalCase.objects.none()
+    if search_query:
+        search_results = cases.filter(
+            Q(number__icontains=search_query)
+            | Q(borrower__name__icontains=search_query)
+            | Q(borrower__organization__icontains=search_query)
+            | Q(items__product__name__icontains=search_query)
+            | Q(items__product__inventory_number__icontains=search_query)
+        ).distinct().order_by('-updated_at', '-number')
 
     pickups_today = cases.filter(
         reserved_from__date=today,
@@ -87,6 +98,8 @@ def dashboard(request):
 
     context = {
         'today': today,
+        'search_query': search_query,
+        'search_results': [_case_card(case) for case in search_results[:10]],
         'pickups_today': [_case_card(case) for case in pickups_today],
         'returns_today': [_case_card(case) for case in returns_today],
         'donation_open': [_case_card(case) for case in donation_open[:10]],

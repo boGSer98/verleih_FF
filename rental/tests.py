@@ -270,6 +270,36 @@ class DashboardViewTests(TestCase):
         self.assertIn('Überweisung', content)
         self.assertIn('name="donation_note"', content)
 
+    def test_dashboard_search_finds_case_by_number_borrower_and_product(self):
+        matching = self._create_case(status=RentalCase.Status.RESERVED)
+        other_borrower = Borrower.objects.create(name='Andere Gruppe', email='andere@example.org')
+        other_start = timezone.now() + timezone.timedelta(days=7)
+        other = RentalCase.objects.create(
+            borrower=other_borrower,
+            reserved_from=other_start,
+            reserved_until=other_start + timezone.timedelta(hours=4),
+            status=RentalCase.Status.RESERVED,
+        )
+        other_product = Product.objects.create(name='Klapptisch', category=self.category, stock_quantity=3)
+        RentalCaseItem.objects.create(rental_case=other, product=other_product, quantity=1)
+        self.client.force_login(self.user)
+
+        for query in [matching.number, 'Förderverein Muster', 'Bierzeltgarnitur']:
+            with self.subTest(query=query):
+                response = self.client.get(reverse('rental:dashboard'), {'q': query})
+
+                self.assertEqual(response.status_code, 200)
+                content = response.content.decode('utf-8')
+                self.assertIn('Suchergebnisse', content)
+                self.assertIn(matching.number, content)
+                self.assertNotIn(other.number, content)
+
+    def test_dashboard_search_requires_login(self):
+        response = self.client.get(reverse('rental:dashboard'), {'q': 'Bierzeltgarnitur'})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/login/', response['Location'])
+
     def test_donation_received_action_requires_login(self):
         donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
 

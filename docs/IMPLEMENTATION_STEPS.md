@@ -96,7 +96,7 @@ Aufgaben:
    - Offene Spenden – Status: umgesetzt.
    - Klärung nötig – Status: umgesetzt.
    - Kürzlich abgeschlossene Vorgänge – Status: umgesetzt mit den letzten fünf abgeschlossenen Vorgängen.
-3. Suchfunktion für Vorgangsnummer, Entleiher und Artikel.
+3. Suchfunktion für Vorgangsnummer, Entleiher und Artikel. Status: umgesetzt mit Dashboard-Suchfeld und eigener Ergebnisliste.
 4. Rollen-/Login-Schutz aktivieren.
 5. Mobile Ansicht optimieren.
 
