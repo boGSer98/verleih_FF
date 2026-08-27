@@ -46,13 +46,17 @@
             {% for borrower in borrowers %}<option value="{{ borrower.pk }}" {% if values.borrower == borrower.pk|stringformat:"s" %}selected{% endif %}>{{ borrower.name }}{% if borrower.organization %} · {{ borrower.organization }}{% endif %}</option>{% endfor %}
           </select>
         </label>
-        <p class="muted">Wenn kein vorhandener Entleiher gewählt wird, werden die folgenden Daten neu angelegt.</p>
+        <p class="muted">Wähle einen vorhandenen Entleiher zur Prüfung/Bearbeitung oder erfasse die Daten für einen neuen Entleiher direkt hier.</p>
         <div class="grid">
-          <label>Name <input name="borrower_name" autocomplete="name" value="{{ values.borrower_name }}"></label>
+          <label>Name <input name="borrower_name" autocomplete="name" required value="{{ values.borrower_name }}"></label>
           <label>Organisation <input name="borrower_organization" value="{{ values.borrower_organization }}"></label>
-          <label>E-Mail <input name="borrower_email" type="email" autocomplete="email" value="{{ values.borrower_email }}"></label>
+          <label>E-Mail <input name="borrower_email" type="email" autocomplete="email" required value="{{ values.borrower_email }}"></label>
           <label>Telefon <input name="borrower_phone" type="tel" autocomplete="tel" value="{{ values.borrower_phone }}"></label>
+          <label>Straße/Hausnummer <input name="borrower_street" autocomplete="street-address" value="{{ values.borrower_street }}"></label>
+          <label>PLZ <input name="borrower_postal_code" autocomplete="postal-code" inputmode="numeric" value="{{ values.borrower_postal_code }}"></label>
+          <label>Ort <input name="borrower_city" autocomplete="address-level2" value="{{ values.borrower_city }}"></label>
         </div>
+        <label>Interne Entleihernotiz <textarea name="borrower_notes" placeholder="Hinweise zum Entleiher, Verein, Ansprechpartner oder früheren Absprachen">{{ values.borrower_notes }}</textarea></label>
       </section>
 
       <section class="card">
@@ -110,7 +114,31 @@
       <button class="ghost" type="button" data-remove-row aria-label="Artikelposition entfernen">Entfernen</button>
     </div>
   </template>
+  {{ borrower_data|json_script:"borrower-data" }}
   <script>
+    const borrowers = JSON.parse(document.querySelector('#borrower-data').textContent);
+    const borrowerById = new Map(borrowers.map((borrower) => [borrower.id, borrower]));
+    const borrowerSelect = document.querySelector('select[name="borrower"]');
+    const borrowerFields = [
+      'borrower_name',
+      'borrower_organization',
+      'borrower_email',
+      'borrower_phone',
+      'borrower_street',
+      'borrower_postal_code',
+      'borrower_city',
+      'borrower_notes',
+    ];
+    function fillBorrowerFields() {
+      const borrower = borrowerById.get(borrowerSelect.value);
+      borrowerFields.forEach((name) => {
+        const field = document.querySelector(`[name="${name}"]`);
+        if (!field) return;
+        field.value = borrower ? borrower[name] || '' : '';
+      });
+    }
+    borrowerSelect.addEventListener('change', fillBorrowerFields);
+
     const itemList = document.querySelector('#item-list');
     const addButton = document.querySelector('#add-item-row');
     const template = document.querySelector('#item-row-template');

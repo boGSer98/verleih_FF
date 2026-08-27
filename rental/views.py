@@ -145,8 +145,34 @@ def _case_form_item_indices(post_data=None):
     return sorted(indices or {1, 2, 3})
 
 
+def _borrower_form_data(post_data):
+    return {
+        'name': post_data.get('borrower_name', '').strip(),
+        'organization': post_data.get('borrower_organization', '').strip(),
+        'email': post_data.get('borrower_email', '').strip(),
+        'phone': post_data.get('borrower_phone', '').strip(),
+        'street': post_data.get('borrower_street', '').strip(),
+        'postal_code': post_data.get('borrower_postal_code', '').strip(),
+        'city': post_data.get('borrower_city', '').strip(),
+        'notes': post_data.get('borrower_notes', '').strip(),
+    }
+
+
+def _borrower_values(borrower):
+    return {
+        'borrower_name': borrower.name,
+        'borrower_organization': borrower.organization,
+        'borrower_email': borrower.email,
+        'borrower_phone': borrower.phone,
+        'borrower_street': borrower.street,
+        'borrower_postal_code': borrower.postal_code,
+        'borrower_city': borrower.city,
+        'borrower_notes': borrower.notes,
+    }
+
+
 @login_required
-@permission_required(('rental.add_rentalcase', 'rental.add_borrower', 'rental.add_rentalcaseitem', 'rental.view_product'), raise_exception=True)
+@permission_required(('rental.add_rentalcase', 'rental.add_borrower', 'rental.change_borrower', 'rental.add_rentalcaseitem', 'rental.view_product'), raise_exception=True)
 def case_create(request):
     products = Product.objects.filter(active=True).select_related('category').order_by('category__name', 'name')
     borrowers = Borrower.objects.order_by('name')
@@ -158,20 +184,13 @@ def case_create(request):
         try:
             borrower_id = request.POST.get('borrower')
             borrower = None
-            borrower_data = None
+            borrower_data = _borrower_form_data(request.POST)
+            if not borrower_data['name'] or not borrower_data['email']:
+                raise ValueError('Entleiher-Name und E-Mail sind erforderlich.')
             if borrower_id:
                 borrower = Borrower.objects.get(pk=borrower_id)
             else:
-                borrower_name = request.POST.get('borrower_name', '').strip()
-                borrower_email = request.POST.get('borrower_email', '').strip()
-                if not borrower_name or not borrower_email:
-                    raise ValueError('Entleiher-Name und E-Mail sind erforderlich, wenn kein vorhandener Entleiher gewählt ist.')
-                borrower_data = {
-                    'name': borrower_name,
-                    'organization': request.POST.get('borrower_organization', '').strip(),
-                    'email': borrower_email,
-                    'phone': request.POST.get('borrower_phone', '').strip(),
-                }
+                borrower = Borrower(**borrower_data)
 
             reserved_from = _parse_local_datetime(request.POST.get('reserved_from_date'), request.POST.get('reserved_from_time'), 'Beginn')
             reserved_until = _parse_local_datetime(request.POST.get('reserved_until_date'), request.POST.get('reserved_until_time'), 'Ende')
@@ -190,10 +209,10 @@ def case_create(request):
                 raise ValueError('Mindestens eine Artikelposition ist erforderlich.')
 
             with transaction.atomic():
-                if borrower is None:
-                    if borrower_data is None:
-                        raise ValueError('Entleiherdaten fehlen.')
-                    borrower = Borrower.objects.create(**borrower_data)
+                for field, value in borrower_data.items():
+                    setattr(borrower, field, value)
+                borrower.full_clean()
+                borrower.save()
                 rental_case = RentalCase.objects.create(
                     borrower=borrower,
                     reserved_from=reserved_from,
@@ -227,6 +246,10 @@ def case_create(request):
     context = {
         'products': products,
         'borrowers': borrowers,
+        'borrower_data': [
+            {'id': str(borrower.pk), **_borrower_values(borrower)}
+            for borrower in borrowers
+        ],
         'values': values,
         'errors': errors,
         'item_rows': item_rows,
