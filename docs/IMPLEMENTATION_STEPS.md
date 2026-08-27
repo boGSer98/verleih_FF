@@ -230,13 +230,9 @@ Ziel: Zugriff ist passend für Vereinsbetrieb abgesichert.
 
 Aufgaben:
 
-1. Rollen definieren:
-   - Admin
-   - Verwaltung/Vorstand
-   - Helfer Ausgabe/Rücknahme
-   - Lesen/Auswertung optional
-2. Rechte für Views und Adminbereich konfigurieren.
-3. Login erzwingen.
+1. Rollen definieren. Status: umgesetzt als automatisch angelegte Mustergruppen `Verleih Admin`, `Verleih Verwaltung/Vorstand`, `Verleih Helfer Ausgabe/Rücknahme` und `Verleih Lesen/Auswertung`.
+2. Rechte für Views und Adminbereich konfigurieren. Status: umgesetzt mit modellbasierten Django-Rechten für Verwaltung, Helfer und Lesezugriff.
+3. Login erzwingen. Status: umgesetzt; Dashboard und Prozess-/Dokumentenviews erfordern zusätzlich passende Verleih-Rechte.
 4. CSRF- und Session-Sicherheit prüfen.
 5. Produktionssettings ergänzen:
    - `DEBUG=0`

@@ -4,7 +4,7 @@ import uuid
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.http import FileResponse, HttpResponse
@@ -46,6 +46,7 @@ def _case_card(rental_case):
 
 
 @login_required
+@permission_required('rental.view_rentalcase', raise_exception=True)
 def dashboard(request):
     today = timezone.localdate()
     search_query = request.GET.get('q', '').strip()
@@ -133,6 +134,7 @@ def _decode_signature(data_url, label):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def handover(request, pk):
     rental_case = get_object_or_404(
         RentalCase.objects.select_related('borrower').prefetch_related('items__product'),
@@ -196,6 +198,7 @@ def _validate_required_choice(post_data, field_name, label, allowed_values):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def return_case(request, pk):
     rental_case = get_object_or_404(
         RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
@@ -312,6 +315,7 @@ def return_case(request, pk):
 
 
 @login_required
+@permission_required('rental.change_rentalcase', raise_exception=True)
 def mark_donation_received(request, pk):
     rental_case = get_object_or_404(RentalCase.objects.select_related('borrower'), pk=pk)
     if request.method != 'POST':
@@ -373,6 +377,7 @@ def mark_donation_received(request, pk):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document'), raise_exception=True)
 def generate_reservation_document(request, pk):
     return _generate_document_response(
         request,
@@ -383,6 +388,7 @@ def generate_reservation_document(request, pk):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document'), raise_exception=True)
 def generate_handover_document(request, pk):
     return _generate_document_response(
         request,
@@ -393,6 +399,7 @@ def generate_handover_document(request, pk):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document'), raise_exception=True)
 def generate_return_document(request, pk):
     return _generate_document_response(
         request,
@@ -403,6 +410,7 @@ def generate_return_document(request, pk):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document'), raise_exception=True)
 def generate_closing_document(request, pk):
     return _generate_document_response(
         request,
@@ -438,26 +446,31 @@ def _send_generated_document_response(request, pk, document_type):
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document', 'rental.change_document'), raise_exception=True)
 def send_reservation_document(request, pk):
     return _send_generated_document_response(request, pk, Document.DocumentType.RESERVATION)
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document', 'rental.change_document'), raise_exception=True)
 def send_handover_document(request, pk):
     return _send_generated_document_response(request, pk, Document.DocumentType.HANDOVER)
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document', 'rental.change_document'), raise_exception=True)
 def send_return_document(request, pk):
     return _send_generated_document_response(request, pk, Document.DocumentType.RETURN)
 
 
 @login_required
+@permission_required(('rental.view_rentalcase', 'rental.add_document', 'rental.change_document'), raise_exception=True)
 def send_closing_document(request, pk):
     return _send_generated_document_response(request, pk, Document.DocumentType.CLOSING)
 
 
 @login_required
+@permission_required('rental.change_document', raise_exception=True)
 def send_document(request, pk):
     document = get_object_or_404(
         Document.objects.select_related('rental_case__borrower'),
@@ -473,6 +486,7 @@ def send_document(request, pk):
 
 
 @login_required
+@permission_required('rental.view_document', raise_exception=True)
 def document_download(request, pk):
     document = get_object_or_404(Document.objects.select_related('rental_case'), pk=pk)
     if not document.file:
