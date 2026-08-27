@@ -99,7 +99,7 @@ Aufgaben:
 3. Suchfunktion für Vorgangsnummer, Entleiher und Artikel. Status: umgesetzt mit Dashboard-Suchfeld und eigener Ergebnisliste.
 4. Rollen-/Login-Schutz aktivieren.
 5. Mobile Ansicht optimieren.
-6. Web-Vorgangsanlage für Verwaltung außerhalb des Django-Admins. Status: umgesetzt mit Entleiherauswahl/-neuanlage, Datums-/HH:MM-Zeitfeldern und bis zu fünf Artikelpositionen.
+6. Web-Vorgangsanlage für Verwaltung außerhalb des Django-Admins. Status: umgesetzt mit Entleiherauswahl/-neuanlage, Datums-/HH:MM-Zeitfeldern, dynamisch ergänzbaren Artikelpositionen und Weiterleitung auf die neue Vorgangsdetailseite nach dem Speichern.
 7. Kalenderübersicht für aktuelle Vorgänge. Status: umgesetzt als mobile Monatskalenderansicht mit aktiven Vorgängen, Monatsnavigation und Vorgangschips in den Tageszellen.
 8. Vorgangsdetail außerhalb des Django-Admins. Status: umgesetzt mit mobilen Aktionsbuttons, Artikeln, Dokumenten-/Mailaktionen, Protokollnotizen und Rücknahmefotos.
 

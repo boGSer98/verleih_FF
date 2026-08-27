@@ -1,6 +1,7 @@
 import base64
 import binascii
 import calendar as calendar_module
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -132,6 +133,18 @@ def _parse_local_datetime(date_value, time_value, label):
     return timezone.make_aware(naive, timezone.get_current_timezone())
 
 
+def _case_form_item_indices(post_data=None):
+    if not post_data:
+        return [1, 2, 3]
+    indices = {
+        int(match.group(1))
+        for key in post_data.keys()
+        for match in [re.match(r'^(?:product|quantity)_(\d+)$', key)]
+        if match
+    }
+    return sorted(indices or {1, 2, 3})
+
+
 @login_required
 @permission_required(('rental.add_rentalcase', 'rental.add_borrower', 'rental.add_rentalcaseitem', 'rental.view_product'), raise_exception=True)
 def case_create(request):
@@ -163,7 +176,7 @@ def case_create(request):
             reserved_from = _parse_local_datetime(request.POST.get('reserved_from_date'), request.POST.get('reserved_from_time'), 'Beginn')
             reserved_until = _parse_local_datetime(request.POST.get('reserved_until_date'), request.POST.get('reserved_until_time'), 'Ende')
             product_rows = []
-            for index in range(1, 6):
+            for index in _case_form_item_indices(request.POST):
                 product_id = request.POST.get(f'product_{index}')
                 quantity_raw = request.POST.get(f'quantity_{index}', '').strip()
                 if not product_id:
@@ -194,7 +207,7 @@ def case_create(request):
                     item.full_clean()
                     item.save()
             messages.success(request, f'Vorgang {rental_case.number} wurde angelegt.')
-            return redirect('rental:dashboard')
+            return redirect('rental:case_detail', pk=rental_case.pk)
         except (Borrower.DoesNotExist, Product.DoesNotExist):
             errors.append('Ausgewählter Entleiher oder Artikel wurde nicht gefunden.')
         except ValueError as exc:
@@ -202,11 +215,21 @@ def case_create(request):
         except Exception as exc:
             errors.append(str(exc))
 
+    item_indices = _case_form_item_indices(request.POST if request.method == 'POST' else None)
+    item_rows = [
+        {
+            'index': index,
+            'product': values.get(f'product_{index}', '') if values else '',
+            'quantity': values.get(f'quantity_{index}', '1') if values else '1',
+        }
+        for index in item_indices
+    ]
     context = {
         'products': products,
         'borrowers': borrowers,
         'values': values,
         'errors': errors,
+        'item_rows': item_rows,
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/case_form.html', context)
