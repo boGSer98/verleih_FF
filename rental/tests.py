@@ -367,6 +367,9 @@ class DashboardViewTests(TestCase):
         self.assertIn('Format: HH:MM', content)
         self.assertIn('Weitere Artikelposition hinzufügen', content)
         self.assertIn('Vorgang speichern und öffnen', content)
+        self.assertIn('Förderverein Muster', content)
+        self.assertIn('borrower_street', content)
+        self.assertIn('borrower-data', content)
 
         response = self.client.post(reverse('rental:case_create'), {
             'borrower_name': 'Web Entleiher',
@@ -411,6 +414,40 @@ class DashboardViewTests(TestCase):
         self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
         self.assertEqual(rental_case.items.count(), 2)
         self.assertEqual(rental_case.items.get(product=extra_product).quantity, 3)
+
+    def test_case_create_updates_selected_borrower_from_visible_fields(self):
+        manager = get_user_model().objects.create_user(username='verwaltung-entleiher', password='testpass123')
+        manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
+        start = timezone.localtime(timezone.now()).replace(hour=12, minute=0, second=0, microsecond=0)
+        end = start + timezone.timedelta(hours=2)
+        self.client.force_login(manager)
+
+        response = self.client.post(reverse('rental:case_create'), {
+            'borrower': str(self.borrower.pk),
+            'borrower_name': 'Förderverein Muster aktualisiert',
+            'borrower_organization': 'Förderverein geprüft',
+            'borrower_email': 'neu@example.org',
+            'borrower_phone': '01234 56789',
+            'borrower_street': 'Hauptstraße 1',
+            'borrower_postal_code': '55555',
+            'borrower_city': 'Musterstadt',
+            'borrower_notes': 'Daten bei Vorgangsanlage geprüft.',
+            'reserved_from_date': start.date().isoformat(),
+            'reserved_from_time': start.strftime('%H:%M'),
+            'reserved_until_date': end.date().isoformat(),
+            'reserved_until_time': end.strftime('%H:%M'),
+            'product_1': str(self.product.pk),
+            'quantity_1': '1',
+        })
+
+        rental_case = RentalCase.objects.get(borrower=self.borrower)
+        self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
+        self.borrower.refresh_from_db()
+        self.assertEqual(self.borrower.name, 'Förderverein Muster aktualisiert')
+        self.assertEqual(self.borrower.email, 'neu@example.org')
+        self.assertEqual(self.borrower.street, 'Hauptstraße 1')
+        self.assertEqual(self.borrower.city, 'Musterstadt')
+        self.assertEqual(self.borrower.notes, 'Daten bei Vorgangsanlage geprüft.')
 
     def test_calendar_shows_month_grid_with_active_cases(self):
         current_month = timezone.localdate().replace(day=1)
