@@ -221,11 +221,16 @@ class RentalCase(TimeStampedModel):
     def can_transition_to(self, target_status):
         return target_status in self.allowed_next_statuses()
 
+    def has_open_donation_decision(self):
+        return self.expected_donation > 0 and self.donation_decision == self.DonationDecision.OPEN
+
     def transition_to(self, target_status, *, save=True):
         if not self.can_transition_to(target_status):
             current_label = self.Status(self.status).label
             target_label = self.Status(target_status).label
             raise ValidationError(f'Statuswechsel von „{current_label}“ nach „{target_label}“ ist nicht erlaubt.')
+        if target_status == self.Status.COMPLETED and self.has_open_donation_decision():
+            raise ValidationError('Der Vorgang kann erst abgeschlossen werden, wenn die Spendenentscheidung dokumentiert ist.')
         self.status = target_status
         if target_status == self.Status.COMPLETED and not self.closed_at:
             self.closed_at = timezone.now()

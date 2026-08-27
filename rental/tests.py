@@ -93,6 +93,40 @@ class RentalCaseModelTests(TestCase):
         self.assertEqual(case.status, RentalCase.Status.COMPLETED)
         self.assertIsNotNone(case.closed_at)
 
+    def test_completion_is_blocked_while_donation_decision_is_open(self):
+        borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
+        case = RentalCase.objects.create(
+            borrower=borrower,
+            reserved_from=timezone.now(),
+            reserved_until=timezone.now() + timezone.timedelta(days=1),
+            status=RentalCase.Status.RETURNED,
+            expected_donation=25,
+            donation_decision=RentalCase.DonationDecision.OPEN,
+        )
+
+        with self.assertRaisesMessage(ValidationError, 'Spendenentscheidung dokumentiert'):
+            case.transition_to(RentalCase.Status.COMPLETED)
+
+        self.assertEqual(case.status, RentalCase.Status.RETURNED)
+        self.assertIsNone(case.closed_at)
+
+    def test_completion_is_allowed_after_donation_decision(self):
+        borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
+        case = RentalCase.objects.create(
+            borrower=borrower,
+            reserved_from=timezone.now(),
+            reserved_until=timezone.now() + timezone.timedelta(days=1),
+            status=RentalCase.Status.RETURNED,
+            expected_donation=25,
+            donation_decision=RentalCase.DonationDecision.WAIVED,
+            donation_note='Vorstand verzichtet.',
+        )
+
+        case.transition_to(RentalCase.Status.COMPLETED)
+
+        self.assertEqual(case.status, RentalCase.Status.COMPLETED)
+        self.assertIsNotNone(case.closed_at)
+
     def test_invalid_status_transition_is_blocked(self):
         borrower = Borrower.objects.create(name='Max Muster', email='max@example.org')
         case = RentalCase.objects.create(
