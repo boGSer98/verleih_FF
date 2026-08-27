@@ -365,6 +365,8 @@ class DashboardViewTests(TestCase):
         self.assertIn('type="time"', content)
         self.assertIn('step="60"', content)
         self.assertIn('Format: HH:MM', content)
+        self.assertIn('Weitere Artikelposition hinzufügen', content)
+        self.assertIn('Vorgang speichern und öffnen', content)
 
         response = self.client.post(reverse('rental:case_create'), {
             'borrower_name': 'Web Entleiher',
@@ -378,11 +380,37 @@ class DashboardViewTests(TestCase):
             'notes': 'per Webseite angelegt',
         })
 
-        self.assertEqual(response.status_code, 302)
         rental_case = RentalCase.objects.get(borrower__name='Web Entleiher')
+        self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
         self.assertEqual(rental_case.status, RentalCase.Status.RESERVED)
         self.assertEqual(rental_case.reserved_from.second, 0)
         self.assertEqual(rental_case.items.get().quantity, 2)
+
+    def test_case_create_accepts_dynamically_added_item_rows(self):
+        manager = get_user_model().objects.create_user(username='verwaltung-dynamisch', password='testpass123')
+        manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
+        extra_product = Product.objects.create(name='Stehtisch', category=self.category, stock_quantity=4)
+        start = timezone.localtime(timezone.now()).replace(hour=11, minute=0, second=0, microsecond=0)
+        end = start + timezone.timedelta(hours=2)
+        self.client.force_login(manager)
+
+        response = self.client.post(reverse('rental:case_create'), {
+            'borrower_name': 'Dynamischer Entleiher',
+            'borrower_email': 'dynamisch@example.org',
+            'reserved_from_date': start.date().isoformat(),
+            'reserved_from_time': start.strftime('%H:%M'),
+            'reserved_until_date': end.date().isoformat(),
+            'reserved_until_time': end.strftime('%H:%M'),
+            'product_1': str(self.product.pk),
+            'quantity_1': '1',
+            'product_6': str(extra_product.pk),
+            'quantity_6': '3',
+        })
+
+        rental_case = RentalCase.objects.get(borrower__name='Dynamischer Entleiher')
+        self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
+        self.assertEqual(rental_case.items.count(), 2)
+        self.assertEqual(rental_case.items.get(product=extra_product).quantity, 3)
 
     def test_calendar_shows_month_grid_with_active_cases(self):
         current_month = timezone.localdate().replace(day=1)
