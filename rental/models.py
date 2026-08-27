@@ -299,6 +299,20 @@ class Protocol(TimeStampedModel):
         return f'{self.get_protocol_type_display()} {self.rental_case}'
 
 
+class ProtocolPhoto(TimeStampedModel):
+    protocol = models.ForeignKey(Protocol, verbose_name='Protokoll', on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField('Foto', upload_to='protocol-photos/')
+    caption = models.CharField('Beschreibung', max_length=240, blank=True)
+
+    class Meta:
+        verbose_name = 'Protokollfoto'
+        verbose_name_plural = 'Protokollfotos'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return self.caption or f'Foto zu {self.protocol}'
+
+
 class Document(TimeStampedModel):
     class DocumentType(models.TextChoices):
         RESERVATION = 'reservation', 'Reservierungsbestätigung'

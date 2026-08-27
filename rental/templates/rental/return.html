@@ -20,7 +20,7 @@
     .grid { display:grid; gap:.8rem; }
     .item-card { border:1px solid #dde5ee; border-radius:14px; padding:.85rem; }
     label { display:block; font-weight:700; margin:.6rem 0 .3rem; }
-    input[type="text"], input[type="number"], textarea { width:100%; min-height:48px; border:1px solid #bcc8d6; border-radius:12px; padding:.75rem; font:inherit; }
+    input[type="text"], input[type="number"], input[type="file"], textarea { width:100%; min-height:48px; border:1px solid #bcc8d6; border-radius:12px; padding:.75rem; font:inherit; }
     textarea { min-height:90px; resize:vertical; }
     .choice-grid { display:grid; gap:.55rem; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); margin:.6rem 0; }
     .choice { min-height:54px; display:flex; align-items:center; gap:.5rem; border:1px solid #ccd7e3; border-radius:14px; padding:.75rem; background:#fff; font-weight:700; }
@@ -50,7 +50,7 @@
   </header>
   <main>
     {% if messages %}<ul class="messages">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>{% endif %}
-    <form method="post" id="return-form">
+    <form method="post" id="return-form" enctype="multipart/form-data">
       {% csrf_token %}
 
       <fieldset class="card step" data-step="1">
@@ -110,9 +110,14 @@
       </fieldset>
 
       <fieldset class="card step" data-step="3" disabled>
-        <h2><span class="step-number">3</span>Protokollnotiz</h2>
-        <textarea name="notes" placeholder="Zusammenfassung, offene Punkte oder Spendenhinweise"></textarea>
-        <label class="choice ok"><input type="checkbox" data-continue> Protokollnotiz geprüft.</label>
+        <h2><span class="step-number">3</span>Fotos und Protokollnotiz</h2>
+        <label for="return_photos">Schadens-/Reinigungsfotos optional</label>
+        <input id="return_photos" name="return_photos" type="file" accept="image/*" capture="environment" multiple>
+        <label for="photo_caption">Beschreibung zu den Fotos</label>
+        <input id="photo_caption" name="photo_caption" type="text" placeholder="z. B. Delle links, starke Verschmutzung">
+        <label for="return-notes">Protokollnotiz</label>
+        <textarea id="return-notes" name="notes" placeholder="Zusammenfassung, offene Punkte oder Spendenhinweise"></textarea>
+        <label class="choice ok"><input type="checkbox" data-continue> Fotos/Notiz geprüft.</label>
       </fieldset>
 
       <fieldset class="card step" data-step="4" disabled>

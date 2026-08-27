@@ -6,6 +6,8 @@ app_name = 'rental'
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('kalender/', views.calendar, name='calendar'),
+    path('vorgaenge/neu/', views.case_create, name='case_create'),
     path('vorgaenge/<int:pk>/uebergabe/', views.handover, name='handover'),
     path('vorgaenge/<int:pk>/ruecknahme/', views.return_case, name='return'),
     path('vorgaenge/<int:pk>/spende-erhalten/', views.mark_donation_received, name='donation_received'),
