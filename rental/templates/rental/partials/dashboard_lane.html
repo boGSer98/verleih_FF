@@ -11,65 +11,7 @@
             <span class="pill">{{ card.case.reserved_from|date:"d.m. H:i" }} – {{ card.case.reserved_until|date:"d.m. H:i" }}</span>
           </div>
           <p>{{ card.item_summary }}</p>
-          {% if css_class == "donation" %}
-          <p>Erwartet: <strong>{{ card.case.expected_donation }} €</strong> · bisher erhalten: <strong>{{ card.case.received_donation }} €</strong></p>
-          <form class="donation-form" method="post" action="{{ card.donation_received_url }}">
-            {% csrf_token %}
-            <div class="form-grid">
-              <label class="field">
-                Betrag
-                <input name="amount" inputmode="decimal" value="{{ card.case.expected_donation }}">
-              </label>
-              <label class="field">
-                Entscheidung
-                <select name="decision">
-                  {% for value, label in donation_decision_choices %}
-                    {% if value != "open" %}<option value="{{ value }}">{{ label }}</option>{% endif %}
-                  {% endfor %}
-                </select>
-              </label>
-              <label class="field">
-                Zahlungsart
-                <select name="payment_method">
-                  <option value="">Nicht erfasst</option>
-                  {% for value, label in donation_payment_method_choices %}
-                    <option value="{{ value }}">{{ label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-            </div>
-            <label class="field">
-              Zahlungsnotiz
-              <textarea name="donation_note" placeholder="z. B. bar bei Abholung, überwiesen am ..."></textarea>
-            </label>
-            <button class="button" type="submit">Spendenentscheidung speichern</button>
-          </form>
-          {% endif %}
-          {% if css_class == "pickup" %}
-          <a class="button" href="{{ card.handover_url }}">Übergabe starten</a>
-          {% elif css_class == "return" %}
-          <a class="button" href="{{ card.return_url }}">Rücknahme starten</a>
-          {% endif %}
-          <a class="button secondary" href="{{ card.reservation_document_url }}">Reservierungs-PDF</a>
-          <form class="inline-form" method="post" action="{{ card.reservation_document_send_url }}">
-            {% csrf_token %}
-            <button class="button secondary" type="submit">Reservierung mailen</button>
-          </form>
-          <a class="button secondary" href="{{ card.handover_document_url }}">Übergabe-PDF</a>
-          <form class="inline-form" method="post" action="{{ card.handover_document_send_url }}">
-            {% csrf_token %}
-            <button class="button secondary" type="submit">Übergabe mailen</button>
-          </form>
-          <a class="button secondary" href="{{ card.return_document_url }}">Rücknahme-PDF</a>
-          <form class="inline-form" method="post" action="{{ card.return_document_send_url }}">
-            {% csrf_token %}
-            <button class="button secondary" type="submit">Rücknahme mailen</button>
-          </form>
-          <a class="button secondary" href="{{ card.closing_document_url }}">Abschluss-PDF</a>
-          <form class="inline-form" method="post" action="{{ card.closing_document_send_url }}">
-            {% csrf_token %}
-            <button class="button secondary" type="submit">Abschluss mailen</button>
-          </form>
+          <p><strong>Nächster Schritt:</strong> {{ card.next_action.label }}</p>
           <a class="button secondary" href="{{ card.url }}">Vorgang öffnen</a>
         </div>
       {% endfor %}

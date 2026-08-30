@@ -26,6 +26,23 @@ def _admin_change_url(rental_case):
     return reverse('admin:rental_rentalcase_change', args=[rental_case.pk])
 
 
+def _case_next_action(rental_case):
+    status = rental_case.status
+    if status == RentalCase.Status.REQUEST:
+        return {'label': 'Reservierung prüfen und bestätigen', 'url': _admin_change_url(rental_case)}
+    if status in {RentalCase.Status.RESERVED, RentalCase.Status.PREPARED}:
+        return {'label': 'Übergabe starten', 'url': reverse('rental:handover', args=[rental_case.pk])}
+    if status in {RentalCase.Status.HANDED_OVER, RentalCase.Status.DONATION_OPEN, RentalCase.Status.DONATION_RECEIVED}:
+        return {'label': 'Rücknahme starten', 'url': reverse('rental:return', args=[rental_case.pk])}
+    if status in {RentalCase.Status.RETURNED, RentalCase.Status.CLARIFICATION}:
+        return {'label': 'Vorgang abschließen', 'url': reverse('rental:case_detail', args=[rental_case.pk]) + '#abschluss'}
+    if status == RentalCase.Status.COMPLETED:
+        return {'label': 'Keine Aktion offen', 'url': ''}
+    if status == RentalCase.Status.CANCELLED:
+        return {'label': 'Vorgang ist storniert', 'url': ''}
+    return {'label': 'Vorgang prüfen', 'url': reverse('rental:case_detail', args=[rental_case.pk])}
+
+
 def _case_card(rental_case):
     item_summary = ', '.join(
         f'{item.quantity} × {item.product.name}'
@@ -47,6 +64,7 @@ def _case_card(rental_case):
         'closing_document_send_url': reverse('rental:closing_document_send', args=[rental_case.pk]),
         'donation_received_url': reverse('rental:donation_received', args=[rental_case.pk]),
         'complete_url': reverse('rental:case_complete', args=[rental_case.pk]),
+        'next_action': _case_next_action(rental_case),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
 
@@ -304,8 +322,52 @@ def case_detail(request, pk):
         'calendar_url': reverse('rental:calendar'),
         'admin_url': _admin_change_url(rental_case),
         'document_types': Document.DocumentType,
+        'next_action': _case_next_action(rental_case),
+        'document_actions': _document_actions(rental_case),
     }
     return render(request, 'rental/case_detail.html', context)
+
+
+
+def _document_block_reason(rental_case, document_type):
+    if document_type == Document.DocumentType.RESERVATION:
+        if rental_case.status in {RentalCase.Status.REQUEST, RentalCase.Status.CANCELLED}:
+            return 'Die Reservierungs-PDF kann erst nach bestätigter Reservierung erzeugt werden.'
+        return ''
+    if document_type == Document.DocumentType.HANDOVER:
+        if not rental_case.protocols.filter(protocol_type=Protocol.ProtocolType.HANDOVER).exists():
+            return 'Die Übergabe-PDF kann erst nach gespeicherter Übergabe erzeugt werden.'
+        return ''
+    if document_type == Document.DocumentType.RETURN:
+        if not rental_case.protocols.filter(protocol_type=Protocol.ProtocolType.RETURN).exists():
+            return 'Die Rücknahme-PDF kann erst nach gespeicherter Rücknahme erzeugt werden.'
+        return ''
+    if document_type == Document.DocumentType.CLOSING:
+        if rental_case.status != RentalCase.Status.COMPLETED:
+            return 'Die Abschluss-PDF kann erst nach abgeschlossenem Vorgang erzeugt werden.'
+        return ''
+    return ''
+
+
+def _document_actions(rental_case):
+    definitions = [
+        (Document.DocumentType.RESERVATION, 'Reservierung', reverse('rental:reservation_document', args=[rental_case.pk]), reverse('rental:reservation_document_send', args=[rental_case.pk])),
+        (Document.DocumentType.HANDOVER, 'Übergabe', reverse('rental:handover_document', args=[rental_case.pk]), reverse('rental:handover_document_send', args=[rental_case.pk])),
+        (Document.DocumentType.RETURN, 'Rücknahme', reverse('rental:return_document', args=[rental_case.pk]), reverse('rental:return_document_send', args=[rental_case.pk])),
+        (Document.DocumentType.CLOSING, 'Abschluss', reverse('rental:closing_document', args=[rental_case.pk]), reverse('rental:closing_document_send', args=[rental_case.pk])),
+    ]
+    actions = []
+    for document_type, label, url, send_url in definitions:
+        block_reason = _document_block_reason(rental_case, document_type)
+        actions.append({
+            'type': document_type,
+            'label': label,
+            'url': url,
+            'send_url': send_url,
+            'available': not block_reason,
+            'block_reason': block_reason,
+        })
+    return actions
 
 
 def _calendar_month_from_request(request):
@@ -460,6 +522,7 @@ def handover(request, pk):
     context = {
         'rental_case': rental_case,
         'admin_case_url': _admin_change_url(rental_case),
+        'case_url': reverse('rental:case_detail', args=[rental_case.pk]),
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/handover.html', context)
@@ -487,7 +550,7 @@ def return_case(request, pk):
     }
     if rental_case.status not in allowed_statuses:
         messages.error(request, 'Die mobile Rücknahme ist nur für übergebene Vorgänge möglich.')
-        return redirect(_admin_change_url(rental_case))
+        return redirect('rental:case_detail', pk=rental_case.pk)
 
     if request.method == 'POST':
         error = None
@@ -590,6 +653,7 @@ def return_case(request, pk):
     context = {
         'rental_case': rental_case,
         'admin_case_url': _admin_change_url(rental_case),
+        'case_url': reverse('rental:case_detail', args=[rental_case.pk]),
         'dashboard_url': reverse('rental:dashboard'),
     }
     return render(request, 'rental/return.html', context)
@@ -755,6 +819,10 @@ def _generate_document_response(request, pk, document_type, success_message):
         RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
         pk=pk,
     )
+    block_reason = _document_block_reason(rental_case, document_type)
+    if block_reason:
+        messages.error(request, block_reason)
+        return redirect('rental:case_detail', pk=rental_case.pk)
     document = create_or_replace_document(rental_case, document_type, request=request)
     messages.success(request, success_message)
     return redirect('rental:document_download', pk=document.pk)
@@ -767,12 +835,16 @@ def _send_generated_document_response(request, pk, document_type):
     )
     if request.method != 'POST':
         return HttpResponse('Mailversand erfordert POST.', status=405)
+    block_reason = _document_block_reason(rental_case, document_type)
+    if block_reason:
+        messages.error(request, block_reason)
+        return redirect('rental:case_detail', pk=rental_case.pk)
     document = create_or_replace_document(rental_case, document_type, request=request)
     if send_document_email(document, request=request):
         messages.success(request, f'{document.get_document_type_display()} wurde an {document.sent_to} gesendet.')
     else:
         messages.error(request, f'{document.get_document_type_display()} konnte nicht gesendet werden: {document.send_error}')
-    return redirect(_admin_change_url(rental_case))
+    return redirect('rental:case_detail', pk=rental_case.pk)
 
 
 @login_required
@@ -808,11 +880,15 @@ def send_document(request, pk):
     )
     if request.method != 'POST':
         return HttpResponse('Mailversand erfordert POST.', status=405)
+    block_reason = _document_block_reason(document.rental_case, document.document_type)
+    if block_reason:
+        messages.error(request, block_reason)
+        return redirect('rental:case_detail', pk=document.rental_case.pk)
     if send_document_email(document, request=request):
         messages.success(request, f'Dokument wurde an {document.sent_to} gesendet.')
     else:
         messages.error(request, f'Dokument konnte nicht gesendet werden: {document.send_error}')
-    return redirect(_admin_change_url(document.rental_case))
+    return redirect('rental:case_detail', pk=document.rental_case.pk)
 
 
 @login_required

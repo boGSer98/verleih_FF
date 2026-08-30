@@ -37,6 +37,11 @@
     .photo-list { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
     .photo { border:1px solid #dde5ee; border-radius:14px; padding:.5rem; background:#fbfdff; }
     .photo img { width:100%; height:auto; border-radius:10px; display:block; }
+    .messages { list-style:none; padding:0; margin:0 0 1rem; }
+    .messages li { padding:.75rem; border-radius:12px; background:#fff3cd; margin-bottom:.5rem; }
+    .next-action { border-left:6px solid var(--primary); background:#f8fbff; }
+    .locked { opacity:.62; }
+    .button[aria-disabled="true"] { pointer-events:none; background:#edf2f7; color:#738196; }
     @media (max-width:640px) { main { padding:.75rem; } .grid, .button-row { grid-template-columns:1fr; } .card { border-radius:16px; padding:.9rem; } dl { grid-template-columns:1fr; } .button, button { width:100%; } }
   </style>
 </head>
@@ -46,6 +51,7 @@
     <p>{{ card.case.borrower.name }} · {{ card.case.reserved_from|date:"d.m.Y H:i" }} – {{ card.case.reserved_until|date:"d.m.Y H:i" }}</p>
   </header>
   <main>
+    {% if messages %}<ul class="messages">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>{% endif %}
     <nav class="button-row" aria-label="Vorgangsaktionen">
       <a class="button secondary" href="{{ dashboard_url }}">Zum Dashboard</a>
       <a class="button secondary" href="{{ calendar_url }}">Zum Kalender</a>
@@ -69,16 +75,15 @@
       {% if card.case.notes %}<p><strong>Notizen:</strong><br>{{ card.case.notes|linebreaksbr }}</p>{% endif %}
     </section>
 
-    <section class="card">
-      <h2>Nächste Aktionen</h2>
+    <section class="card next-action">
+      <h2>Geführter nächster Schritt</h2>
+      <p class="muted">Damit keine Prozessschritte übersprungen werden, sind Dokumente und Folgeaktionen erst nach dem passenden Status bzw. Protokoll freigegeben.</p>
       <div class="button-row">
-        {% if card.case.status == "reserved" or card.case.status == "prepared" %}<a class="button" href="{{ card.handover_url }}">Übergabe starten</a>{% endif %}
-        {% if card.case.status == "handed_over" or card.case.status == "donation_open" or card.case.status == "donation_received" %}<a class="button" href="{{ card.return_url }}">Rücknahme starten</a>{% endif %}
-        {% if can_complete %}<a class="button warn" href="#abschluss">Vorgang abschließen</a>{% endif %}
-        <a class="button secondary" href="{{ card.reservation_document_url }}">Reservierungs-PDF</a>
-        <a class="button secondary" href="{{ card.handover_document_url }}">Übergabe-PDF</a>
-        <a class="button secondary" href="{{ card.return_document_url }}">Rücknahme-PDF</a>
-        <a class="button secondary" href="{{ card.closing_document_url }}">Abschluss-PDF</a>
+        {% if next_action.url %}
+          <a class="button" href="{{ next_action.url }}">{{ next_action.label }}</a>
+        {% else %}
+          <span class="pill status">{{ next_action.label }}</span>
+        {% endif %}
       </div>
     </section>
 
@@ -158,34 +163,20 @@
     <section class="card">
       <h2>Dokumente & Mailversand</h2>
       <div class="grid">
-        <article>
-          <h3>Reservierung</h3>
-          <div class="button-row">
-            <a class="button secondary" href="{{ card.reservation_document_url }}">PDF erzeugen/öffnen</a>
-            <form class="inline-form" method="post" action="{{ card.reservation_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
-          </div>
-        </article>
-        <article>
-          <h3>Übergabe</h3>
-          <div class="button-row">
-            <a class="button secondary" href="{{ card.handover_document_url }}">PDF erzeugen/öffnen</a>
-            <form class="inline-form" method="post" action="{{ card.handover_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
-          </div>
-        </article>
-        <article>
-          <h3>Rücknahme</h3>
-          <div class="button-row">
-            <a class="button secondary" href="{{ card.return_document_url }}">PDF erzeugen/öffnen</a>
-            <form class="inline-form" method="post" action="{{ card.return_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
-          </div>
-        </article>
-        <article>
-          <h3>Abschluss</h3>
-          <div class="button-row">
-            <a class="button secondary" href="{{ card.closing_document_url }}">PDF erzeugen/öffnen</a>
-            <form class="inline-form" method="post" action="{{ card.closing_document_send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
-          </div>
-        </article>
+        {% for action in document_actions %}
+          <article{% if not action.available %} class="locked"{% endif %}>
+            <h3>{{ action.label }}</h3>
+            {% if action.available %}
+              <div class="button-row">
+                <a class="button secondary" href="{{ action.url }}" target="_blank" rel="noopener">PDF erzeugen/öffnen</a>
+                <form class="inline-form" method="post" action="{{ action.send_url }}">{% csrf_token %}<button class="secondary" type="submit">Per E-Mail senden</button></form>
+              </div>
+            {% else %}
+              <p class="muted">{{ action.block_reason }}</p>
+              <div class="button-row"><span class="button secondary" aria-disabled="true">Noch nicht verfügbar</span></div>
+            {% endif %}
+          </article>
+        {% endfor %}
       </div>
     </section>
 
