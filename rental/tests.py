@@ -337,6 +337,8 @@ class DashboardViewTests(TestCase):
         self.assertIn(reverse('rental:return', args=[case.pk]), content)
         self.assertIn(reverse('rental:reservation_document', args=[case.pk]), content)
         self.assertIn('target="_blank"', content)
+        self.assertIn('min-height:36px', content)
+        self.assertIn('display:flex; flex-wrap:wrap', content)
         self.assertIn('Die Übergabe-PDF kann erst nach gespeicherter Übergabe erzeugt werden.', content)
         self.assertIn('Dokumente & Mailversand', content)
         self.assertIn('Rücknahmefotos', content)
