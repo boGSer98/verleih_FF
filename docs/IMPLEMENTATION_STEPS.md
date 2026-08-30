@@ -110,26 +110,28 @@ Abnahmekriterien:
 
 ## Phase 4 – Mobile Übergabe
 
-Status: erste mobile Übergabemaske mit Touch-Signaturen umgesetzt.
+Status: mobile Übergabemaske mit Touch-Signaturen und vorgangsbezogener Zubehörauswahl umgesetzt.
 
 Ziel: Übergabe kann vor Ort auf Tablet oder Smartphone durchgeführt werden.
 
 Aufgaben:
 
 1. Mobile Übergabeseite pro Vorgang bauen.
-2. Artikelpositionen mit Menge und Zustand anzeigen.
+2. Artikelpositionen mit Menge, Zustand und Zubehör anzeigen.
 3. Bemerkungen und Hinweise erfassen.
 4. Entleiherdaten bestätigen.
 5. Unterschrift Entleiher per Touch erfassen.
 6. Unterschrift Verein/Helfer per Touch erfassen.
 7. Übergabeprotokoll speichern.
 8. Status auf `Übergeben` setzen.
+9. Pflichtzubehör je Artikel bei der Übergabe bestätigen; optionales Zubehör nur dokumentieren, wenn es tatsächlich mitgegeben wurde. Status: umgesetzt.
 
 Abnahmekriterien:
 
 - Übergabe kann ohne Django-Admin durchgeführt werden.
 - Signaturen werden gespeichert.
 - Protokoll ist dem Vorgang zugeordnet.
+- Mitgegebenes Zubehör ist am Vorgang gespeichert und in Übergabe, Rücknahme sowie PDFs nachvollziehbar.
 
 ## Phase 5 – Mobile Rücknahme
 

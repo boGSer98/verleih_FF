@@ -29,6 +29,7 @@
     .choice.warn { border-color:#f0c782; }
     .choice.danger { border-color:#eba6a6; }
     .accessories { margin:.6rem 0; padding:.7rem; border-radius:12px; background:#f2f6fb; }
+    .accessories .optional { color:#5d6b7c; font-weight:700; }
     canvas { width:100%; height:180px; border:2px dashed #9dafc4; border-radius:14px; background:#fff; touch-action:none; display:block; }
     .button-row { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
     button, .button { min-height:54px; border:0; border-radius:999px; padding:.85rem 1rem; font-weight:800; font:inherit; text-decoration:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
@@ -67,14 +68,24 @@
             <article class="item-card" data-item-card>
               <h3>{{ item.quantity }} × {{ item.product.name }}</h3>
               <p class="muted">Zustand bei Übergabe: {{ item.handover_condition|default:"nicht erfasst" }}</p>
-              {% if item.product.accessories.all %}
+              {% if item.handover_accessories.all %}
+                <div class="accessories">
+                  <strong>Bei Übergabe mitgegeben:</strong>
+                  <ul>
+                    {% for accessory in item.handover_accessories.all %}
+                      <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}<span class="optional">Optional</span>{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% elif item.product.accessories.all %}
                 <div class="accessories">
                   <strong>Zubehör laut Stammdaten:</strong>
                   <ul>
                     {% for accessory in item.product.accessories.all %}
-                      <li>{{ accessory.quantity }} × {{ accessory.name }}{% if accessory.required %} · Pflicht{% endif %}</li>
+                      <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}<span class="optional">Optional</span>{% endif %}</li>
                     {% endfor %}
                   </ul>
+                  <p class="muted">Für diesen Vorgang wurde bei der Übergabe noch keine konkrete Zubehörauswahl gespeichert.</p>
                 </div>
               {% else %}
                 <p class="muted">Kein Zubehör in den Stammdaten erfasst.</p>

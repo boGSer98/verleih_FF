@@ -83,6 +83,14 @@
               <div class="ok">In Ordnung</div>
             {% endif %}
             {% if item.return_condition %}{{ item.return_condition|linebreaksbr }}{% else %}<span class="meta">Kein Rücknahmezustand erfasst.</span>{% endif %}
+            {% if item.handover_accessories.all %}
+              <br><strong>Mitgegebenes Zubehör:</strong>
+              <ul>
+                {% for accessory in item.handover_accessories.all %}
+                  <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}Optional{% endif %}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
           </td>
           <td>{{ item.damage_amount }} €</td>
         </tr>

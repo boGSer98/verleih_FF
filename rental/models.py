@@ -244,6 +244,12 @@ class RentalCaseItem(TimeStampedModel):
     product = models.ForeignKey(Product, verbose_name='Artikel', on_delete=models.PROTECT, related_name='case_items')
     quantity = models.PositiveIntegerField('Menge', default=1)
     handover_condition = models.TextField('Zustand bei Übergabe', blank=True)
+    handover_accessories = models.ManyToManyField(
+        ProductAccessory,
+        verbose_name='Mitgegebenes Zubehör',
+        blank=True,
+        related_name='handover_items',
+    )
     return_condition = models.TextField('Zustand bei Rücknahme', blank=True)
     missing = models.BooleanField('Fehlt', default=False)
     damaged = models.BooleanField('Beschädigt', default=False)
