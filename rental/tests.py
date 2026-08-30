@@ -302,15 +302,11 @@ class DashboardViewTests(TestCase):
         self.assertIn(clarification.number, content)
         self.assertIn(completed.number, content)
         self.assertIn('min-height: 54px', content)
-        self.assertIn(reverse('rental:reservation_document_send', args=[pickup.pk]), content)
-        self.assertIn('Reservierung mailen', content)
-        self.assertIn(reverse('rental:donation_received', args=[donation.pk]), content)
-        self.assertIn('Spendenentscheidung speichern', content)
-        self.assertIn('name="decision"', content)
-        self.assertIn('Teilweise erhalten', content)
-        self.assertIn('name="payment_method"', content)
-        self.assertIn('Überweisung', content)
-        self.assertIn('name="donation_note"', content)
+        self.assertNotIn('Reservierung mailen', content)
+        self.assertNotIn('Rücknahme-PDF', content)
+        self.assertNotIn('Spendenentscheidung speichern', content)
+        self.assertIn('Nächster Schritt:', content)
+        self.assertIn('Vorgang öffnen', content)
         self.assertIn(reverse('rental:case_create'), content)
         self.assertIn(reverse('rental:calendar'), content)
         self.assertIn(reverse('rental:case_detail', args=[pickup.pk]), content)
@@ -336,10 +332,12 @@ class DashboardViewTests(TestCase):
         content = response.content.decode('utf-8')
         self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
         self.assertIn(f'Vorgang {case.number}', content)
-        self.assertIn('Nächste Aktionen', content)
+        self.assertIn('Geführter nächster Schritt', content)
         self.assertIn('Rücknahme starten', content)
         self.assertIn(reverse('rental:return', args=[case.pk]), content)
         self.assertIn(reverse('rental:reservation_document', args=[case.pk]), content)
+        self.assertIn('target="_blank"', content)
+        self.assertIn('Die Übergabe-PDF kann erst nach gespeicherter Übergabe erzeugt werden.', content)
         self.assertIn('Dokumente & Mailversand', content)
         self.assertIn('Rücknahmefotos', content)
         self.assertIn('Kratzer am Gestell', content)
@@ -836,6 +834,7 @@ class ReturnViewTests(TestCase):
         self.assertIn('type="file"', content)
         self.assertIn('accept="image/*"', content)
         self.assertIn('capture="environment"', content)
+        self.assertIn('multiple', content)
 
     def test_return_post_without_issues_sets_returned_and_creates_protocol(self):
         self.client.force_login(self.user)
@@ -855,19 +854,23 @@ class ReturnViewTests(TestCase):
         self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
         self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
 
-    def test_return_post_stores_uploaded_damage_photos(self):
+    def test_return_post_stores_multiple_uploaded_damage_photos(self):
         self.client.force_login(self.user)
-        upload = SimpleUploadedFile('schaden.jpg', b'fake-image-bytes', content_type='image/jpeg')
+        uploads = [
+            SimpleUploadedFile('schaden-1.jpg', b'fake-image-bytes-1', content_type='image/jpeg'),
+            SimpleUploadedFile('schaden-2.jpg', b'fake-image-bytes-2', content_type='image/jpeg'),
+        ]
         data = self._valid_post_data(photo_caption='Delle an Tischplatte')
-        data['return_photos'] = upload
+        data['return_photos'] = uploads
 
         response = self.client.post(reverse('rental:return', args=[self.case.pk]), data)
 
         self.assertEqual(response.status_code, 302)
         protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.RETURN)
-        photo = protocol.photos.get()
-        self.assertEqual(photo.caption, 'Delle an Tischplatte')
-        self.assertTrue(photo.image.name.startswith('protocol-photos/'))
+        self.assertEqual(protocol.photos.count(), 2)
+        for photo in protocol.photos.all():
+            self.assertEqual(photo.caption, 'Delle an Tischplatte')
+            self.assertTrue(photo.image.name.startswith('protocol-photos/'))
 
     def test_return_post_with_damage_sets_clarification(self):
         self.client.force_login(self.user)
@@ -1038,6 +1041,8 @@ class DocumentPdfTests(TestCase):
 
     def test_handover_document_route_creates_pdf_and_redirects_to_download(self):
         self._create_handover_protocol()
+        self.case.status = RentalCase.Status.HANDED_OVER
+        self.case.save(update_fields=['status', 'updated_at'])
         self.client.force_login(self.user)
 
         response = self.client.get(reverse('rental:handover_document', args=[self.case.pk]))
@@ -1054,6 +1059,8 @@ class DocumentPdfTests(TestCase):
 
     def test_return_document_route_creates_pdf_and_redirects_to_download(self):
         self._create_return_protocol()
+        self.case.status = RentalCase.Status.RETURNED
+        self.case.save(update_fields=['status', 'updated_at'])
         self.client.force_login(self.user)
 
         response = self.client.get(reverse('rental:return_document', args=[self.case.pk]))
@@ -1061,6 +1068,17 @@ class DocumentPdfTests(TestCase):
         document = self.case.documents.get(document_type=Document.DocumentType.RETURN)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], reverse('rental:document_download', args=[document.pk]))
+
+    def test_return_document_route_blocks_until_return_protocol_exists(self):
+        self.client.force_login(self.user)
+        self.case.status = RentalCase.Status.HANDED_OVER
+        self.case.save(update_fields=['status', 'updated_at'])
+
+        response = self.client.get(reverse('rental:return_document', args=[self.case.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('rental:case_detail', args=[self.case.pk]))
+        self.assertFalse(self.case.documents.filter(document_type=Document.DocumentType.RETURN).exists())
 
     def test_closing_document_route_requires_login(self):
         response = self.client.get(reverse('rental:closing_document', args=[self.case.pk]))
@@ -1071,6 +1089,9 @@ class DocumentPdfTests(TestCase):
     def test_closing_document_route_creates_pdf_and_redirects_to_download(self):
         self._create_handover_protocol()
         self._create_return_protocol()
+        self.case.status = RentalCase.Status.COMPLETED
+        self.case.closed_at = timezone.now()
+        self.case.save(update_fields=['status', 'closed_at', 'updated_at'])
         self.client.force_login(self.user)
 
         response = self.client.get(reverse('rental:closing_document', args=[self.case.pk]))
@@ -1115,7 +1136,7 @@ class DocumentPdfTests(TestCase):
 
         document.refresh_from_db()
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], reverse('admin:rental_rentalcase_change', args=[self.case.pk]))
+        self.assertEqual(response['Location'], reverse('rental:case_detail', args=[self.case.pk]))
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.borrower.email])
         self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
@@ -1158,7 +1179,7 @@ class DocumentPdfTests(TestCase):
 
         document = self.case.documents.get(document_type=Document.DocumentType.RESERVATION)
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], reverse('admin:rental_rentalcase_change', args=[self.case.pk]))
+        self.assertEqual(response['Location'], reverse('rental:case_detail', args=[self.case.pk]))
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.borrower.email])
         self.assertEqual(mail.outbox[0].attachments[0][2], 'application/pdf')
