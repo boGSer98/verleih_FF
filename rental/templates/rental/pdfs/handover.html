@@ -71,13 +71,21 @@
           </td>
           <td>
             {% if item.handover_condition %}<strong>Zustand:</strong> {{ item.handover_condition|linebreaksbr }}<br>{% endif %}
-            {% if item.product.accessories.all %}
-              <strong>Zubehör/Bestandteile:</strong>
+            {% if item.handover_accessories.all %}
+              <strong>Mitgegebenes Zubehör:</strong>
               <ul>
-                {% for accessory in item.product.accessories.all %}
-                  <li>{{ accessory.quantity }} × {{ accessory.name }}{% if accessory.required %} · Pflichtbestandteil{% endif %}</li>
+                {% for accessory in item.handover_accessories.all %}
+                  <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}Optional{% endif %}</li>
                 {% endfor %}
               </ul>
+            {% elif item.product.accessories.all %}
+              <strong>Zubehör laut Stammdaten:</strong>
+              <ul>
+                {% for accessory in item.product.accessories.all %}
+                  <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}Optional{% endif %}</li>
+                {% endfor %}
+              </ul>
+              <span class="meta">Noch keine mitgegebene Zubehörauswahl gespeichert.</span>
             {% else %}
               Keine Zubehördaten erfasst.
             {% endif %}

@@ -679,6 +679,8 @@ class HandoverViewTests(TestCase):
             status=RentalCase.Status.PREPARED,
         )
         self.item = RentalCaseItem.objects.create(rental_case=self.case, product=self.product, quantity=1)
+        self.required_accessory = ProductAccessory.objects.create(product=self.product, name='Seitenteile', quantity=4, required=True)
+        self.optional_accessory = ProductAccessory.objects.create(product=self.product, name='LED-Lichterkette', quantity=1, required=False)
         self.signature_data = 'data:image/png;base64,' + base64.b64encode(b'png-signature-bytes' * 10).decode('ascii')
 
     def test_handover_requires_login(self):
@@ -699,6 +701,11 @@ class HandoverViewTests(TestCase):
         self.assertIn('Unterschrift Verein / Helfer', content)
         self.assertIn('touch-action:none', content)
         self.assertIn('min-height:54px', content)
+        self.assertIn('Mitgegebenes Zubehör auswählen', content)
+        self.assertIn('Seitenteile', content)
+        self.assertIn('Pflicht', content)
+        self.assertIn('LED-Lichterkette', content)
+        self.assertIn('Optional', content)
 
     def test_handover_post_creates_protocol_signatures_and_updates_status(self):
         self.client.force_login(self.user)
@@ -706,6 +713,7 @@ class HandoverViewTests(TestCase):
         response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
             f'condition_{self.item.pk}': 'vollständig und sauber',
             f'note_{self.item.pk}': 'direkt vor Ort geprüft',
+            f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk), str(self.optional_accessory.pk)],
             'notes': 'Übergabe am Vereinsheim',
             'borrower_signature_data': self.signature_data,
             'club_signature_data': self.signature_data,
@@ -718,9 +726,30 @@ class HandoverViewTests(TestCase):
         self.assertEqual(self.case.status, RentalCase.Status.HANDED_OVER)
         self.assertEqual(self.item.handover_condition, 'vollständig und sauber')
         self.assertEqual(self.item.notes, 'direkt vor Ort geprüft')
+        self.assertCountEqual(
+            self.item.handover_accessories.values_list('name', flat=True),
+            ['Seitenteile', 'LED-Lichterkette'],
+        )
         self.assertEqual(protocol.notes, 'Übergabe am Vereinsheim')
         self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
         self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
+
+    def test_handover_post_blocks_missing_required_accessory(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
+            f'condition_{self.item.pk}': 'vollständig und sauber',
+            f'handover_accessories_{self.item.pk}': [str(self.optional_accessory.pk)],
+            'borrower_signature_data': self.signature_data,
+            'club_signature_data': self.signature_data,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.case.refresh_from_db()
+        self.item.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
+        self.assertEqual(self.item.handover_accessories.count(), 0)
+        self.assertContains(response, 'Pflichtzubehör für Pavillon muss mitgegeben werden: Seitenteile.')
 
     def test_handover_post_requires_signatures(self):
         self.client.force_login(self.user)
@@ -748,8 +777,8 @@ class ReturnViewTests(TestCase):
             stock_quantity=4,
             storage_location='Halle',
         )
-        ProductAccessory.objects.create(product=self.product, name='Tischplatte', quantity=1)
-        ProductAccessory.objects.create(product=self.product, name='Bank', quantity=2)
+        self.required_accessory = ProductAccessory.objects.create(product=self.product, name='Tischplatte', quantity=1, required=True)
+        self.optional_accessory = ProductAccessory.objects.create(product=self.product, name='Bank', quantity=2, required=False)
         self.borrower = Borrower.objects.create(name='Max Rückgabe', email='max@example.org')
         self.case = RentalCase.objects.create(
             borrower=self.borrower,
@@ -763,6 +792,7 @@ class ReturnViewTests(TestCase):
             quantity=1,
             handover_condition='vollständig und sauber',
         )
+        self.item.handover_accessories.set([self.required_accessory, self.optional_accessory])
         self.signature_data = 'data:image/png;base64,' + base64.b64encode(b'return-signature-bytes' * 10).decode('ascii')
 
     def _valid_post_data(self, **overrides):
@@ -801,6 +831,8 @@ class ReturnViewTests(TestCase):
         self.assertIn('data-step="2" disabled', content)
         self.assertIn('touch-action:none', content)
         self.assertIn('Tischplatte', content)
+        self.assertIn('Bei Übergabe mitgegeben', content)
+        self.assertIn('Optional', content)
         self.assertIn('type="file"', content)
         self.assertIn('accept="image/*"', content)
         self.assertIn('capture="environment"', content)

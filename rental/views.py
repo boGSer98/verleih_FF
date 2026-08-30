@@ -56,7 +56,7 @@ def _case_card(rental_case):
 def dashboard(request):
     today = timezone.localdate()
     search_query = request.GET.get('q', '').strip()
-    cases = RentalCase.objects.select_related('borrower').prefetch_related('items__product')
+    cases = RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories')
 
     search_results = RentalCase.objects.none()
     if search_query:
@@ -267,6 +267,7 @@ def case_detail(request, pk):
         RentalCase.objects.select_related('borrower').prefetch_related(
             'items__product__category',
             'items__product__accessories',
+            'items__handover_accessories',
             'documents',
             'protocols__photos',
         ),
@@ -335,7 +336,7 @@ def calendar(request):
     visible_start = month_grid[0][0]
     visible_end = month_grid[-1][-1]
     cases = list(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product').filter(
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories').filter(
             reserved_from__date__lte=visible_end,
             reserved_until__date__gte=visible_start,
         ).exclude(status__in=[RentalCase.Status.CANCELLED, RentalCase.Status.COMPLETED]).order_by('reserved_from', 'number')
@@ -386,7 +387,7 @@ def _decode_signature(data_url, label):
 @permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def handover(request, pk):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product'),
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
         pk=pk,
     )
     allowed_statuses = {RentalCase.Status.RESERVED, RentalCase.Status.PREPARED}
@@ -402,15 +403,38 @@ def handover(request, pk):
         except ValueError as exc:
             error = str(exc)
 
+        accessory_results = []
+        if not error:
+            try:
+                for item in rental_case.items.all():
+                    product_accessories = list(item.product.accessories.all())
+                    selected_ids = {
+                        int(accessory_id)
+                        for accessory_id in request.POST.getlist(f'handover_accessories_{item.pk}')
+                        if accessory_id.isdigit()
+                    }
+                    valid_ids = {accessory.pk for accessory in product_accessories}
+                    unknown_ids = selected_ids - valid_ids
+                    missing_required = [accessory for accessory in product_accessories if accessory.required and accessory.pk not in selected_ids]
+                    if unknown_ids:
+                        raise ValueError(f'Für {item.product.name} wurde ungültiges Zubehör ausgewählt.')
+                    if missing_required:
+                        names = ', '.join(accessory.name for accessory in missing_required)
+                        raise ValueError(f'Pflichtzubehör für {item.product.name} muss mitgegeben werden: {names}.')
+                    accessory_results.append((item, [accessory for accessory in product_accessories if accessory.pk in selected_ids]))
+            except ValueError as exc:
+                error = str(exc)
+
         if not error:
             with transaction.atomic():
-                for item in rental_case.items.all():
+                for item, selected_accessories in accessory_results:
                     condition = request.POST.get(f'condition_{item.pk}', '').strip()
                     note = request.POST.get(f'note_{item.pk}', '').strip()
                     item.handover_condition = condition
                     if note:
                         item.notes = note
                     item.save(update_fields=['handover_condition', 'notes', 'updated_at'])
+                    item.handover_accessories.set(selected_accessories)
 
                 protocol = Protocol.objects.create(
                     rental_case=rental_case,
@@ -429,6 +453,9 @@ def handover(request, pk):
             messages.success(request, 'Übergabeprotokoll gespeichert und Vorgang auf „Übergeben“ gesetzt.')
             return redirect('rental:case_detail', pk=rental_case.pk)
         messages.error(request, error)
+
+    for item in rental_case.items.all():
+        item.selected_handover_accessory_ids = set(item.handover_accessories.values_list('pk', flat=True))
 
     context = {
         'rental_case': rental_case,
@@ -450,7 +477,7 @@ def _validate_required_choice(post_data, field_name, label, allowed_values):
 @permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def return_case(request, pk):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
         pk=pk,
     )
     allowed_statuses = {
@@ -635,7 +662,7 @@ def mark_donation_received(request, pk):
 @login_required
 @permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.add_document'), raise_exception=True)
 def complete_case(request, pk):
-    rental_case = get_object_or_404(RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'), pk=pk)
+    rental_case = get_object_or_404(RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'), pk=pk)
     if request.method != 'POST':
         return HttpResponse('Vorgangsabschluss erfordert POST.', status=405)
 
@@ -725,7 +752,7 @@ def generate_closing_document(request, pk):
 
 def _generate_document_response(request, pk, document_type, success_message):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
         pk=pk,
     )
     document = create_or_replace_document(rental_case, document_type, request=request)
@@ -735,7 +762,7 @@ def _generate_document_response(request, pk, document_type, success_message):
 
 def _send_generated_document_response(request, pk, document_type):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
         pk=pk,
     )
     if request.method != 'POST':

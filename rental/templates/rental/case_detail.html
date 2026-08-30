@@ -24,6 +24,7 @@
     .muted { color:var(--muted); }
     .item { border:1px solid #dde5ee; border-radius:14px; padding:.85rem; margin:.65rem 0; background:#fbfdff; }
     .item h3 { margin:.1rem 0 .35rem; font-size:1rem; }
+    .accessories { margin:.55rem 0; padding:.65rem; border-radius:12px; background:#f2f6fb; }
     dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:.35rem .7rem; margin:.5rem 0; }
     dt { color:var(--muted); font-weight:800; }
     dd { margin:0; }
@@ -125,8 +126,25 @@
         <article class="item">
           <h3>{{ item.quantity }} × {{ item.product.name }}</h3>
           <p class="muted">{{ item.product.category.name }}{% if item.product.inventory_number %} · Inventar: {{ item.product.inventory_number }}{% endif %}{% if item.product.storage_location %} · Lagerort: {{ item.product.storage_location }}{% endif %}</p>
-          {% if item.product.accessories.all %}
-            <p><strong>Zubehör:</strong> {% for accessory in item.product.accessories.all %}{{ accessory.quantity }} × {{ accessory.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+          {% if item.handover_accessories.all %}
+            <div class="accessories">
+              <strong>Mitgegebenes Zubehör:</strong>
+              <ul>
+                {% for accessory in item.handover_accessories.all %}
+                  <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}Optional{% endif %}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% elif item.product.accessories.all %}
+            <div class="accessories">
+              <strong>Zubehör laut Stammdaten:</strong>
+              <ul>
+                {% for accessory in item.product.accessories.all %}
+                  <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}Optional{% endif %}</li>
+                {% endfor %}
+              </ul>
+              <p class="muted">Noch keine mitgegebene Zubehörauswahl gespeichert.</p>
+            </div>
           {% endif %}
           {% if item.handover_condition %}<p><strong>Übergabe:</strong><br>{{ item.handover_condition|linebreaksbr }}</p>{% endif %}
           {% if item.return_condition %}<p><strong>Rücknahme:</strong><br>{{ item.return_condition|linebreaksbr }}</p>{% endif %}
