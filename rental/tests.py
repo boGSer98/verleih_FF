@@ -1,5 +1,7 @@
 import base64
+import os
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -20,6 +22,7 @@ from .permissions import (
     GROUP_READONLY,
     permission_codes_for_group,
 )
+from verleih_ff.settings import env_bool, env_list
 
 
 def create_case(borrower, start, end, status=RentalCase.Status.RESERVED):
@@ -29,6 +32,22 @@ def create_case(borrower, start, end, status=RentalCase.Status.RESERVED):
         reserved_until=end,
         status=status,
     )
+
+
+class SettingsHelperTests(TestCase):
+    def test_env_bool_accepts_common_truthy_values(self):
+        for value in ('1', 'true', 'TRUE', 'yes', 'on'):
+            with self.subTest(value=value), patch.dict(os.environ, {'AHD_TEST_BOOL': value}, clear=False):
+                self.assertTrue(env_bool('AHD_TEST_BOOL'))
+
+    def test_env_bool_uses_default_when_missing(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(env_bool('AHD_TEST_BOOL', True))
+            self.assertFalse(env_bool('AHD_TEST_BOOL', False))
+
+    def test_env_list_ignores_empty_entries_and_strips_spaces(self):
+        with patch.dict(os.environ, {'AHD_TEST_LIST': ' localhost, 127.0.0.1,, verleih.example.org '}, clear=False):
+            self.assertEqual(env_list('AHD_TEST_LIST'), ['localhost', '127.0.0.1', 'verleih.example.org'])
 
 
 class RentalCaseModelTests(TestCase):
