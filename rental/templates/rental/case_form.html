@@ -12,6 +12,7 @@
     header h1 { margin:0 0 .25rem; font-size:clamp(1.35rem,5vw,2rem); }
     main { width:min(960px,100%); margin:0 auto; padding:1rem; }
     .card { background:var(--card); border-radius:18px; padding:1rem; margin-bottom:1rem; box-shadow:0 2px 10px rgb(12 31 56 / .08); }
+    .form-step.is-hidden { display:none; }
     .grid { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
     .item-list { display:grid; gap:.75rem; }
     .item-row { display:grid; gap:.6rem; grid-template-columns:minmax(0,1fr) 120px auto; align-items:end; padding:.75rem; border:1px solid #dce4ed; border-radius:16px; background:#f8fbff; }
@@ -46,7 +47,7 @@
     {% if errors %}<section class="card errors"><strong>Bitte prüfen:</strong><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></section>{% endif %}
     <form method="post">
       {% csrf_token %}
-      <section class="card" data-step="borrower">
+      <section class="card form-step" data-step="borrower">
         <h2>1. Entleiher</h2>
         <label>Vorhandenen Entleiher wählen
           <select name="borrower">
@@ -69,7 +70,7 @@
         <p class="autosave-status" data-autosave-status="borrower" aria-live="polite"></p>
       </section>
 
-      <section class="card" data-step="period">
+      <section class="card form-step is-hidden" data-step="period">
         <h2>2. Zeitraum</h2>
         <p class="muted">Uhrzeiten werden bewusst nur minutengenau im Format HH:MM erfasst.</p>
         <div class="grid">
@@ -84,7 +85,7 @@
         <p class="autosave-status" data-autosave-status="period" aria-live="polite"></p>
       </section>
 
-      <section class="card" data-step="items">
+      <section class="card form-step is-hidden" data-step="items">
         <h2>3. Artikelpositionen</h2>
         <p class="muted">Starte mit genau einer Zeile. Sobald dort ein Artikel ausgewählt wurde, erscheint automatisch eine weitere leere Position.</p>
         <div id="item-list" class="item-list">
@@ -106,14 +107,14 @@
         <p class="autosave-status" data-autosave-status="items" aria-live="polite"></p>
       </section>
 
-      <section class="card" data-step="notes">
+      <section class="card form-step is-hidden" data-step="notes">
         <h2>4. Notizen</h2>
         <textarea name="notes" placeholder="Hinweise zur Reservierung, Abholung oder Rückgabe">{{ values.notes }}</textarea>
         <div class="step-actions"><button class="secondary" type="button" data-save-next="notes" data-next-step="save">Eingaben zwischenspeichern</button></div>
         <p class="autosave-status" data-autosave-status="notes" aria-live="polite"></p>
       </section>
 
-      <div class="button-row">
+      <div class="button-row form-step is-hidden" data-step="save">
         <button class="primary" type="submit">Vorgang speichern und öffnen</button>
         <a class="button secondary" href="{{ dashboard_url }}">Zur Übersicht</a>
       </div>
@@ -162,7 +163,18 @@
     const availabilityUrl = '{{ availability_url }}';
     const availabilitySummary = document.querySelector('#availability-summary');
     const storageKey = 'verleih-ff-case-create-draft';
+    const hasServerErrors = {{ errors|yesno:'true,false' }};
     let availabilityByProduct = {};
+
+    function revealStep(stepName) {
+      const step = document.querySelector(`[data-step="${stepName}"]`);
+      if (!step) return null;
+      step.classList.remove('is-hidden');
+      return step;
+    }
+    function revealAllSteps() {
+      document.querySelectorAll('[data-step]').forEach((step) => step.classList.remove('is-hidden'));
+    }
 
     function nextIndex() {
       const indexes = [...itemList.querySelectorAll('select[name^="product_"]')].map((select) => Number(select.name.replace('product_', '')) || 0);
@@ -289,11 +301,12 @@
     document.querySelectorAll('[name^="reserved_"]').forEach((field) => field.addEventListener('change', refreshAvailability));
     document.querySelectorAll('[data-save-next]').forEach((button) => button.addEventListener('click', () => {
       saveDraft(button.dataset.saveNext);
-      const next = document.querySelector(`[data-step="${button.dataset.nextStep}"]`);
+      const next = revealStep(button.dataset.nextStep);
       if (next) next.scrollIntoView({behavior: 'smooth', block: 'start'});
     }));
     document.querySelector('form').addEventListener('submit', () => localStorage.removeItem(storageKey));
     restoreDraft();
+    if (hasServerErrors) revealAllSteps();
     ensureSingleTrailingEmptyRow();
     updateItemRows();
     refreshAvailability();
