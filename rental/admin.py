@@ -51,6 +51,7 @@ class RentalCaseItemInline(admin.TabularInline):
 class ProtocolPhotoInline(admin.TabularInline):
     model = ProtocolPhoto
     extra = 0
+    fields = ['rental_case_item', 'image', 'caption', 'created_at', 'updated_at']
     readonly_fields = ['created_at', 'updated_at']
 
 
@@ -198,8 +199,9 @@ class ProtocolAdmin(admin.ModelAdmin):
 
 @admin.register(ProtocolPhoto)
 class ProtocolPhotoAdmin(admin.ModelAdmin):
-    list_display = ['protocol', 'caption', 'created_at']
-    search_fields = ['protocol__rental_case__number', 'caption']
+    list_display = ['protocol', 'rental_case_item', 'caption', 'created_at']
+    list_filter = ['protocol__protocol_type', 'created_at']
+    search_fields = ['protocol__rental_case__number', 'rental_case_item__product__name', 'caption']
 
 
 @admin.register(Document)

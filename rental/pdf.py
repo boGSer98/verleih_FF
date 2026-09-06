@@ -58,18 +58,33 @@ def _latest_protocol(rental_case, document_type):
 def render_document_pdf(rental_case, document_type, *, request=None):
     template_name = DOCUMENT_TYPE_TO_TEMPLATE[document_type]
     protocol = _latest_protocol(rental_case, document_type)
+    items = list(rental_case.items.select_related('product').prefetch_related('product__accessories'))
+    protocol_photos = []
+    for item in items:
+        item.return_protocol_photos = []
+    if protocol:
+        photos_by_item_id = {item.pk: [] for item in items}
+        for photo in protocol.photos.select_related('rental_case_item__product').all():
+            photo_payload = {
+                'caption': photo.caption,
+                'data_url': _signature_data_url(photo.image),
+                'item': photo.rental_case_item,
+            }
+            protocol_photos.append(photo_payload)
+            if photo.rental_case_item_id in photos_by_item_id:
+                photos_by_item_id[photo.rental_case_item_id].append(photo_payload)
+        for item in items:
+            item.return_protocol_photos = photos_by_item_id.get(item.pk, [])
     context = {
         'rental_case': rental_case,
-        'items': rental_case.items.select_related('product').prefetch_related('product__accessories'),
+        'items': items,
         'generated_at': timezone.localtime(),
         'document_type': document_type,
         'protocol': protocol,
         'borrower_signature_data_url': _signature_data_url(protocol.borrower_signature) if protocol else '',
         'club_signature_data_url': _signature_data_url(protocol.club_signature) if protocol else '',
-        'protocol_photos': [
-            {'caption': photo.caption, 'data_url': _signature_data_url(photo.image)}
-            for photo in protocol.photos.all()
-        ] if protocol else [],
+        'protocol_photos': protocol_photos,
+        'unassigned_protocol_photos': [photo for photo in protocol_photos if not photo['item']],
     }
     html = render_to_string(template_name, context=context, request=request)
     base_url = request.build_absolute_uri('/') if request else None
