@@ -112,6 +112,12 @@
 
               <label for="return_note_{{ item.pk }}">Bemerkung zur Rücknahme</label>
               <textarea id="return_note_{{ item.pk }}" name="return_note_{{ item.pk }}" placeholder="Was fehlt? Was ist beschädigt? Reinigungsbedarf?"></textarea>
+
+              <label for="return_photos_{{ item.pk }}">Fotos zu diesem Artikel / Problem optional</label>
+              <input id="return_photos_{{ item.pk }}" name="return_photos_{{ item.pk }}" type="file" accept="image/*" capture="environment" multiple>
+              <p class="muted">Du kannst mehrere Fotos je Artikel aufnehmen, z. B. Übersicht, Detailaufnahme und Zubehör/Fehlteil.</p>
+              <label for="photo_caption_{{ item.pk }}">Beschreibung zu den Fotos dieses Artikels</label>
+              <input id="photo_caption_{{ item.pk }}" name="photo_caption_{{ item.pk }}" type="text" placeholder="z. B. Delle links, starke Verschmutzung">
             </article>
           {% empty %}
             <p class="muted">Noch keine Artikelpositionen erfasst.</p>
@@ -121,14 +127,11 @@
       </fieldset>
 
       <fieldset class="card step" data-step="3" disabled>
-        <h2><span class="step-number">3</span>Fotos und Protokollnotiz</h2>
-        <label for="return_photos">Schadens-/Reinigungsfotos optional</label>
-        <input id="return_photos" name="return_photos" type="file" accept="image/*" capture="environment" multiple>
-        <label for="photo_caption">Beschreibung zu den Fotos</label>
-        <input id="photo_caption" name="photo_caption" type="text" placeholder="z. B. Delle links, starke Verschmutzung">
+        <h2><span class="step-number">3</span>Protokollnotiz</h2>
+        <p class="muted">Fotos werden direkt am jeweiligen Artikel in Schritt 2 aufgenommen und gespeichert.</p>
         <label for="return-notes">Protokollnotiz</label>
         <textarea id="return-notes" name="notes" placeholder="Zusammenfassung, offene Punkte oder Spendenhinweise"></textarea>
-        <label class="choice ok"><input type="checkbox" data-continue> Fotos/Notiz geprüft.</label>
+        <label class="choice ok"><input type="checkbox" data-continue> Notiz geprüft.</label>
       </fieldset>
 
       <fieldset class="card step" data-step="4" disabled>

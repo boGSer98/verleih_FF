@@ -338,8 +338,10 @@ class DashboardViewTests(TestCase):
             performed_by=self.user,
             notes='Rücknahme mit Schadensfoto dokumentiert.',
         )
+        item = case.items.get()
         ProtocolPhoto.objects.create(
             protocol=protocol,
+            rental_case_item=item,
             image=SimpleUploadedFile('schaden.jpg', b'fake-image-bytes', content_type='image/jpeg'),
             caption='Kratzer am Gestell',
         )
@@ -360,7 +362,7 @@ class DashboardViewTests(TestCase):
         self.assertIn('display:flex; flex-wrap:wrap', content)
         self.assertIn('Die Übergabe-PDF kann erst nach gespeicherter Übergabe erzeugt werden.', content)
         self.assertIn('Dokumente & Mailversand', content)
-        self.assertIn('Rücknahmefotos', content)
+        self.assertIn('Rücknahmefotos zu diesem Artikel', content)
         self.assertIn('Kratzer am Gestell', content)
 
     def test_case_detail_requires_login(self):
@@ -901,6 +903,9 @@ class ReturnViewTests(TestCase):
         self.assertIn('Tischplatte', content)
         self.assertIn('Bei Übergabe mitgegeben', content)
         self.assertIn('Optional', content)
+        self.assertIn(f'name="return_photos_{self.item.pk}"', content)
+        self.assertIn(f'name="photo_caption_{self.item.pk}"', content)
+        self.assertIn('Fotos zu diesem Artikel / Problem optional', content)
         self.assertIn('type="file"', content)
         self.assertIn('accept="image/*"', content)
         self.assertIn('capture="environment"', content)
@@ -924,21 +929,23 @@ class ReturnViewTests(TestCase):
         self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
         self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
 
-    def test_return_post_stores_multiple_uploaded_damage_photos(self):
+    def test_return_post_stores_multiple_uploaded_damage_photos_per_item(self):
         self.client.force_login(self.user)
         uploads = [
             SimpleUploadedFile('schaden-1.jpg', b'fake-image-bytes-1', content_type='image/jpeg'),
             SimpleUploadedFile('schaden-2.jpg', b'fake-image-bytes-2', content_type='image/jpeg'),
         ]
-        data = self._valid_post_data(photo_caption='Delle an Tischplatte')
-        data['return_photos'] = uploads
+        data = self._valid_post_data(**{f'photo_caption_{self.item.pk}': 'Delle an Tischplatte'})
+        data[f'return_photos_{self.item.pk}'] = uploads
 
         response = self.client.post(reverse('rental:return', args=[self.case.pk]), data)
 
         self.assertEqual(response.status_code, 302)
         protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.RETURN)
         self.assertEqual(protocol.photos.count(), 2)
+        self.assertEqual(self.item.return_photos.count(), 2)
         for photo in protocol.photos.all():
+            self.assertEqual(photo.rental_case_item, self.item)
             self.assertEqual(photo.caption, 'Delle an Tischplatte')
             self.assertTrue(photo.image.name.startswith('protocol-photos/'))
 

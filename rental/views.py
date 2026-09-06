@@ -319,8 +319,9 @@ def case_detail(request, pk):
             'items__product__category',
             'items__product__accessories',
             'items__handover_accessories',
+            'items__return_photos',
             'documents',
-            'protocols__photos',
+            'protocols__photos__rental_case_item__product',
         ),
         pk=pk,
     )
@@ -482,7 +483,11 @@ def _decode_signature(data_url, label):
 @permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def handover(request, pk):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related(
+            'items__product__accessories',
+            'items__handover_accessories',
+            'items__return_photos',
+        ),
         pk=pk,
     )
     allowed_statuses = {RentalCase.Status.RESERVED, RentalCase.Status.PREPARED}
@@ -570,10 +575,14 @@ def _validate_required_choice(post_data, field_name, label, allowed_values):
 
 
 @login_required
-@permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
+@permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol', 'rental.add_protocolphoto'), raise_exception=True)
 def return_case(request, pk):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related(
+            'items__product__accessories',
+            'items__handover_accessories',
+            'items__return_photos',
+        ),
         pk=pk,
     )
     allowed_statuses = {
@@ -667,11 +676,17 @@ def return_case(request, pk):
                 protocol.borrower_signature.save(borrower_signature.name, borrower_signature, save=False)
                 protocol.club_signature.save(club_signature.name, club_signature, save=False)
                 protocol.save(update_fields=['borrower_signature', 'club_signature', 'updated_at'])
-                photo_caption = request.POST.get('photo_caption', '').strip()
-                for uploaded in request.FILES.getlist('return_photos'):
-                    if uploaded.content_type and not uploaded.content_type.startswith('image/'):
-                        continue
-                    ProtocolPhoto.objects.create(protocol=protocol, image=uploaded, caption=photo_caption)
+                for item, _return_status, _accessory_status, _damage_amount in item_results:
+                    photo_caption = request.POST.get(f'photo_caption_{item.pk}', '').strip()
+                    for uploaded in request.FILES.getlist(f'return_photos_{item.pk}'):
+                        if uploaded.content_type and not uploaded.content_type.startswith('image/'):
+                            continue
+                        ProtocolPhoto.objects.create(
+                            protocol=protocol,
+                            rental_case_item=item,
+                            image=uploaded,
+                            caption=photo_caption,
+                        )
 
                 target_status = RentalCase.Status.CLARIFICATION if has_issue else RentalCase.Status.RETURNED
                 rental_case.transition_to(target_status)
@@ -849,7 +864,11 @@ def generate_closing_document(request, pk):
 
 def _generate_document_response(request, pk, document_type, success_message):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related(
+            'items__product__accessories',
+            'items__handover_accessories',
+            'items__return_photos',
+        ),
         pk=pk,
     )
     block_reason = _document_block_reason(rental_case, document_type)
@@ -863,7 +882,11 @@ def _generate_document_response(request, pk, document_type, success_message):
 
 def _send_generated_document_response(request, pk, document_type):
     rental_case = get_object_or_404(
-        RentalCase.objects.select_related('borrower').prefetch_related('items__product__accessories', 'items__handover_accessories'),
+        RentalCase.objects.select_related('borrower').prefetch_related(
+            'items__product__accessories',
+            'items__handover_accessories',
+            'items__return_photos',
+        ),
         pk=pk,
     )
     if request.method != 'POST':

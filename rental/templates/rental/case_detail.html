@@ -154,6 +154,19 @@
           {% if item.handover_condition %}<p><strong>Übergabe:</strong><br>{{ item.handover_condition|linebreaksbr }}</p>{% endif %}
           {% if item.return_condition %}<p><strong>Rücknahme:</strong><br>{{ item.return_condition|linebreaksbr }}</p>{% endif %}
           {% if item.missing or item.damaged %}<p><span class="pill">Klärung: {% if item.missing %}fehlt{% endif %}{% if item.missing and item.damaged %}, {% endif %}{% if item.damaged %}beschädigt{% endif %}</span></p>{% endif %}
+          {% if item.return_photos.all %}
+            <div class="accessories">
+              <strong>Rücknahmefotos zu diesem Artikel:</strong>
+              <div class="photo-list">
+                {% for photo in item.return_photos.all %}
+                  <figure class="photo">
+                    <img src="{{ photo.image.url }}" alt="Rücknahmefoto {{ item.product.name }} {{ forloop.counter }}">
+                    {% if photo.caption %}<figcaption class="muted">{{ photo.caption }}</figcaption>{% endif %}
+                  </figure>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
         </article>
       {% empty %}
         <p class="muted">Noch keine Artikel erfasst.</p>

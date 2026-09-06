@@ -307,6 +307,14 @@ class Protocol(TimeStampedModel):
 
 class ProtocolPhoto(TimeStampedModel):
     protocol = models.ForeignKey(Protocol, verbose_name='Protokoll', on_delete=models.CASCADE, related_name='photos')
+    rental_case_item = models.ForeignKey(
+        RentalCaseItem,
+        verbose_name='Artikelposition',
+        on_delete=models.CASCADE,
+        related_name='return_photos',
+        blank=True,
+        null=True,
+    )
     image = models.ImageField('Foto', upload_to='protocol-photos/')
     caption = models.CharField('Beschreibung', max_length=240, blank=True)
 
@@ -316,6 +324,8 @@ class ProtocolPhoto(TimeStampedModel):
         ordering = ['created_at']
 
     def __str__(self):
+        if self.rental_case_item_id:
+            return self.caption or f'Foto zu {self.rental_case_item}'
         return self.caption or f'Foto zu {self.protocol}'
 
 

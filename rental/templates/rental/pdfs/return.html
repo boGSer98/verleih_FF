@@ -91,6 +91,17 @@
                 {% endfor %}
               </ul>
             {% endif %}
+            {% if item.return_protocol_photos %}
+              <br><strong>Fotos zu diesem Artikel:</strong>
+              <div class="photos">
+                {% for photo in item.return_protocol_photos %}
+                  <div class="photo">
+                    <img src="{{ photo.data_url }}" alt="Rücknahmefoto {{ item.product.name }} {{ forloop.counter }}">
+                    <div class="meta">{{ photo.caption|default:"Foto zur Artikelrücknahme" }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
           </td>
           <td>{{ item.damage_amount }} €</td>
         </tr>
@@ -115,10 +126,10 @@
     </div>
   {% endif %}
 
-  {% if protocol_photos %}
-    <h2>Fotodokumentation</h2>
+  {% if unassigned_protocol_photos %}
+    <h2>Weitere Fotodokumentation</h2>
     <section class="photos">
-      {% for photo in protocol_photos %}
+      {% for photo in unassigned_protocol_photos %}
         <div class="photo">
           <img src="{{ photo.data_url }}" alt="Rücknahmefoto {{ forloop.counter }}">
           <div class="meta">{{ photo.caption|default:"Foto zur Rücknahme" }}</div>
