@@ -384,7 +384,14 @@ class DashboardViewTests(TestCase):
         self.assertIn('type="time"', content)
         self.assertIn('step="60"', content)
         self.assertIn('Format: HH:MM', content)
-        self.assertIn('Weitere Artikelposition hinzufügen', content)
+        self.assertIn('Weitere Artikelposition manuell hinzufügen', content)
+        self.assertNotIn('<label>Artikel 2', content)
+        self.assertIn('Sobald dort ein Artikel ausgewählt wurde, erscheint automatisch eine weitere leere Position.', content)
+        self.assertIn('data-save-next="borrower"', content)
+        self.assertIn('data-save-next="period"', content)
+        self.assertIn('data-save-next="items"', content)
+        self.assertIn('localStorage.setItem(storageKey', content)
+        self.assertIn(reverse('rental:product_availability'), content)
         self.assertIn('Vorgang speichern und öffnen', content)
         self.assertIn('Förderverein Muster', content)
         self.assertIn('borrower_street', content)
@@ -433,6 +440,38 @@ class DashboardViewTests(TestCase):
         self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
         self.assertEqual(rental_case.items.count(), 2)
         self.assertEqual(rental_case.items.get(product=extra_product).quantity, 3)
+
+    def test_product_availability_endpoint_uses_entered_period(self):
+        manager = get_user_model().objects.create_user(username='verwaltung-verfuegbarkeit', password='testpass123')
+        manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
+        start = timezone.localtime(timezone.now()).replace(hour=13, minute=0, second=0, microsecond=0)
+        end = start + timezone.timedelta(hours=2)
+        blocking_case = self._create_case(status=RentalCase.Status.RESERVED, start=start, end=end)
+        blocking_case.items.update(quantity=self.product.stock_quantity)
+        self.client.force_login(manager)
+
+        response = self.client.get(reverse('rental:product_availability'), {
+            'reserved_from_date': start.date().isoformat(),
+            'reserved_from_time': start.strftime('%H:%M'),
+            'reserved_until_date': end.date().isoformat(),
+            'reserved_until_time': end.strftime('%H:%M'),
+        })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['ok'])
+        self.assertEqual(payload['products'][str(self.product.pk)]['available'], 0)
+        self.assertEqual(payload['products'][str(self.product.pk)]['stock'], self.product.stock_quantity)
+
+    def test_product_availability_endpoint_rejects_missing_period(self):
+        manager = get_user_model().objects.create_user(username='verwaltung-verfuegbarkeit-fehler', password='testpass123')
+        manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
+        self.client.force_login(manager)
+
+        response = self.client.get(reverse('rental:product_availability'), {'reserved_from_date': '2026-09-06'})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['ok'])
 
     def test_case_create_updates_selected_borrower_from_visible_fields(self):
         manager = get_user_model().objects.create_user(username='verwaltung-entleiher', password='testpass123')

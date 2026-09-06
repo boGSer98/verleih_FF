@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -155,14 +155,46 @@ def _parse_local_datetime(date_value, time_value, label):
 
 def _case_form_item_indices(post_data=None):
     if not post_data:
-        return [1, 2, 3]
+        return [1]
     indices = {
         int(match.group(1))
         for key in post_data.keys()
         for match in [re.match(r'^(?:product|quantity)_(\d+)$', key)]
         if match
     }
-    return sorted(indices or {1, 2, 3})
+    return sorted(indices or {1})
+
+
+def _products_availability_payload(reserved_from, reserved_until):
+    return {
+        str(product.pk): {
+            'available': product.available_quantity(reserved_from, reserved_until),
+            'stock': product.stock_quantity,
+            'reservable': product.can_be_reserved,
+        }
+        for product in Product.objects.filter(active=True).order_by('category__name', 'name')
+    }
+
+
+@login_required
+@permission_required('rental.view_product', raise_exception=True)
+def product_availability(request):
+    try:
+        reserved_from = _parse_local_datetime(
+            request.GET.get('reserved_from_date'),
+            request.GET.get('reserved_from_time'),
+            'Beginn',
+        )
+        reserved_until = _parse_local_datetime(
+            request.GET.get('reserved_until_date'),
+            request.GET.get('reserved_until_time'),
+            'Ende',
+        )
+        if reserved_until <= reserved_from:
+            raise ValueError('Ende muss nach Beginn liegen.')
+    except ValueError as exc:
+        return JsonResponse({'ok': False, 'error': str(exc), 'products': {}}, status=400)
+    return JsonResponse({'ok': True, 'products': _products_availability_payload(reserved_from, reserved_until)})
 
 
 def _borrower_form_data(post_data):
@@ -274,6 +306,7 @@ def case_create(request):
         'errors': errors,
         'item_rows': item_rows,
         'dashboard_url': reverse('rental:dashboard'),
+        'availability_url': reverse('rental:product_availability'),
     }
     return render(request, 'rental/case_form.html', context)
 
