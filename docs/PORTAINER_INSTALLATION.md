@@ -61,6 +61,11 @@ Wichtig: Passwörter und `SECRET_KEY` individuell ersetzen, nicht die Beispielwe
 DEBUG=0
 SECRET_KEY=<langen-zufaelligen-django-secret-key-eintragen>
 ALLOWED_HOSTS=localhost,127.0.0.1,<hostname-oder-ip-des-portainer-hosts>
+CSRF_TRUSTED_ORIGINS=https://<domain-oder-hostname>
+SECURE_SSL_REDIRECT=0
+USE_X_FORWARDED_PROTO=0
+SESSION_COOKIE_SECURE=0
+CSRF_COOKIE_SECURE=0
 POSTGRES_DB=verleih_ff
 POSTGRES_USER=verleih_ff
 POSTGRES_PASSWORD=<datenbankpasswort>
@@ -155,6 +160,20 @@ Dann `ALLOWED_HOSTS` auf die echte Domain setzen, z. B.:
 ALLOWED_HOSTS=verleih.example.org
 ```
 
+Bei HTTPS-Betrieb hinter Reverse Proxy zusätzlich die öffentliche Origin eintragen und sichere Cookies aktivieren:
+
+```env
+CSRF_TRUSTED_ORIGINS=https://verleih.example.org
+SECURE_SSL_REDIRECT=1
+USE_X_FORWARDED_PROTO=1
+SESSION_COOKIE_SECURE=1
+CSRF_COOKIE_SECURE=1
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=1
+```
+
+`SECURE_HSTS_PRELOAD=1` nur setzen, wenn die Domain inklusive Subdomains dauerhaft ausschließlich per HTTPS erreichbar ist und bewusst in Browser-Preload-Listen aufgenommen werden soll.
+
 ## 9. Persistente Daten und Backups
 
 Der Stack verwendet Docker-Volumes:
@@ -214,6 +233,9 @@ Prüfen:
 ## 12. Sicherheitsnotizen
 
 - `DEBUG=0` für produktive Nutzung.
+- `ALLOWED_HOSTS` auf konkrete Hostnamen/IPs beschränken, nicht pauschal `*` verwenden.
+- Bei HTTPS/Reverse Proxy `CSRF_TRUSTED_ORIGINS`, `USE_X_FORWARDED_PROTO`, `SESSION_COOKIE_SECURE` und `CSRF_COOKIE_SECURE` passend setzen.
+- HSTS erst aktivieren, wenn HTTPS stabil eingerichtet ist.
 - Starke Passwörter verwenden.
 - Anwendung hinter HTTPS betreiben.
 - Keine echten Secrets in GitHub speichern.

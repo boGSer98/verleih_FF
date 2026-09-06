@@ -239,11 +239,12 @@ Aufgaben:
 1. Rollen definieren. Status: umgesetzt als automatisch angelegte Mustergruppen `Verleih Admin`, `Verleih Verwaltung/Vorstand`, `Verleih Helfer Ausgabe/Rücknahme` und `Verleih Lesen/Auswertung`.
 2. Rechte für Views und Adminbereich konfigurieren. Status: umgesetzt mit modellbasierten Django-Rechten für Verwaltung, Helfer und Lesezugriff.
 3. Login erzwingen. Status: umgesetzt; Dashboard und Prozess-/Dokumentenviews erfordern zusätzlich passende Verleih-Rechte.
-4. CSRF- und Session-Sicherheit prüfen.
+4. CSRF- und Session-Sicherheit prüfen. Status: umgesetzt über zentrale Django-CSRF-Middleware, HttpOnly-Session-Cookies, SameSite-Defaults und konfigurierbare sichere Cookies für HTTPS.
 5. Produktionssettings ergänzen:
-   - `DEBUG=0`
-   - `ALLOWED_HOSTS`
-   - sichere Cookies bei HTTPS
+   - `DEBUG=0`. Status: Standard ist produktionsnah `0`.
+   - `ALLOWED_HOSTS`. Status: per Kommaliste konfigurierbar.
+   - `CSRF_TRUSTED_ORIGINS`. Status: per Kommaliste für HTTPS-Domains hinter Reverse Proxy konfigurierbar.
+   - sichere Cookies bei HTTPS. Status: per `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, HSTS und Proxy-Headern konfigurierbar.
 6. Datenschutz-Hinweise in Dokumentation ergänzen.
 
 Abnahmekriterien:
