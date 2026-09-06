@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('kalender/', views.calendar, name='calendar'),
     path('vorgaenge/neu/', views.case_create, name='case_create'),
+    path('vorgaenge/neu/verfuegbarkeit/', views.product_availability, name='product_availability'),
     path('vorgaenge/<int:pk>/', views.case_detail, name='case_detail'),
     path('vorgaenge/<int:pk>/uebergabe/', views.handover, name='handover'),
     path('vorgaenge/<int:pk>/ruecknahme/', views.return_case, name='return'),

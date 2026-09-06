@@ -24,6 +24,14 @@
     .primary { background:var(--primary); color:white; }
     .secondary { background:#e7eef8; color:var(--primary); }
     .ghost { background:#fff; color:var(--danger); border:1px solid #f0c1c1; min-width:54px; }
+    .step-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:.8rem; }
+    .step-actions .secondary { width:auto; min-height:44px; padding:.65rem 1rem; }
+    .availability { margin-top:.5rem; font-weight:700; color:var(--muted); }
+    .availability.ok { color:#1b7a37; }
+    .availability.warn { color:#9a6700; }
+    .availability.error { color:var(--danger); }
+    .autosave-status { margin-top:.45rem; font-size:.92rem; color:var(--muted); }
+    .item-row.is-filled + .item-row:not(.is-filled) { border-style:dashed; }
     .errors { border-left:4px solid var(--danger); background:#fff1f1; color:var(--danger); }
     .muted { color:var(--muted); }
     @media (max-width:640px) { main { padding:.75rem; } .card { border-radius:16px; padding:.9rem; } .grid, .item-row, .button-row { grid-template-columns:1fr; } .ghost { width:100%; } }
@@ -38,7 +46,7 @@
     {% if errors %}<section class="card errors"><strong>Bitte prüfen:</strong><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></section>{% endif %}
     <form method="post">
       {% csrf_token %}
-      <section class="card">
+      <section class="card" data-step="borrower">
         <h2>1. Entleiher</h2>
         <label>Vorhandenen Entleiher wählen
           <select name="borrower">
@@ -57,9 +65,11 @@
           <label>Ort <input name="borrower_city" autocomplete="address-level2" value="{{ values.borrower_city }}"></label>
         </div>
         <label>Interne Entleihernotiz <textarea name="borrower_notes" placeholder="Hinweise zum Entleiher, Verein, Ansprechpartner oder früheren Absprachen">{{ values.borrower_notes }}</textarea></label>
+        <div class="step-actions"><button class="secondary" type="button" data-save-next="borrower" data-next-step="period">Weiter zu Zeitraum</button></div>
+        <p class="autosave-status" data-autosave-status="borrower" aria-live="polite"></p>
       </section>
 
-      <section class="card">
+      <section class="card" data-step="period">
         <h2>2. Zeitraum</h2>
         <p class="muted">Uhrzeiten werden bewusst nur minutengenau im Format HH:MM erfasst.</p>
         <div class="grid">
@@ -68,12 +78,15 @@
           <label>Ende Datum <input required type="date" name="reserved_until_date" value="{{ values.reserved_until_date }}"></label>
           <label>Ende Uhrzeit <input required type="time" name="reserved_until_time" step="60" value="{{ values.reserved_until_time }}"></label>
         </div>
-        <p id="time-format" class="muted">Format: HH:MM, keine sekundengenaue Betrachtung.</p>
+        <p id="time-format" class="muted">Format: HH:MM, keine sekundengenaue Betrachtung. Nach vollständiger Zeitraumangabe wird die Artikelverfügbarkeit automatisch geprüft.</p>
+        <p id="availability-summary" class="availability" aria-live="polite">Zeitraum eingeben, danach werden verfügbare Artikel angezeigt.</p>
+        <div class="step-actions"><button class="secondary" type="button" data-save-next="period" data-next-step="items">Weiter zu Artikeln</button></div>
+        <p class="autosave-status" data-autosave-status="period" aria-live="polite"></p>
       </section>
 
-      <section class="card">
+      <section class="card" data-step="items">
         <h2>3. Artikelpositionen</h2>
-        <p class="muted">Starte mit wenigen Zeilen und füge bei Bedarf weitere Artikel hinzu.</p>
+        <p class="muted">Starte mit genau einer Zeile. Sobald dort ein Artikel ausgewählt wurde, erscheint automatisch eine weitere leere Position.</p>
         <div id="item-list" class="item-list">
           {% for row in item_rows %}
             <div class="item-row" data-item-row>
@@ -88,12 +101,16 @@
             </div>
           {% endfor %}
         </div>
-        <button class="secondary" type="button" id="add-item-row">Weitere Artikelposition hinzufügen</button>
+        <button class="secondary" type="button" id="add-item-row">Weitere Artikelposition manuell hinzufügen</button>
+        <div class="step-actions"><button class="secondary" type="button" data-save-next="items" data-next-step="notes">Weiter zu Notizen</button></div>
+        <p class="autosave-status" data-autosave-status="items" aria-live="polite"></p>
       </section>
 
-      <section class="card">
+      <section class="card" data-step="notes">
         <h2>4. Notizen</h2>
         <textarea name="notes" placeholder="Hinweise zur Reservierung, Abholung oder Rückgabe">{{ values.notes }}</textarea>
+        <div class="step-actions"><button class="secondary" type="button" data-save-next="notes" data-next-step="save">Eingaben zwischenspeichern</button></div>
+        <p class="autosave-status" data-autosave-status="notes" aria-live="polite"></p>
       </section>
 
       <div class="button-row">
@@ -142,25 +159,144 @@
     const itemList = document.querySelector('#item-list');
     const addButton = document.querySelector('#add-item-row');
     const template = document.querySelector('#item-row-template');
+    const availabilityUrl = '{{ availability_url }}';
+    const availabilitySummary = document.querySelector('#availability-summary');
+    const storageKey = 'verleih-ff-case-create-draft';
+    let availabilityByProduct = {};
+
     function nextIndex() {
       const indexes = [...itemList.querySelectorAll('select[name^="product_"]')].map((select) => Number(select.name.replace('product_', '')) || 0);
       return Math.max(0, ...indexes) + 1;
+    }
+    function addItemRow() {
+      const index = nextIndex();
+      itemList.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__index__', index));
+      updateItemRows();
+      updateAvailabilityOptions();
+      return itemList.querySelector('[data-item-row]:last-child');
+    }
+    function ensureSingleTrailingEmptyRow() {
+      const rows = [...itemList.querySelectorAll('[data-item-row]')];
+      const emptyRows = rows.filter((row) => !row.querySelector('select[name^="product_"]').value);
+      emptyRows.slice(1).forEach((row) => row.remove());
+      const remainingRows = [...itemList.querySelectorAll('[data-item-row]')];
+      const hasFilledRow = remainingRows.some((row) => row.querySelector('select[name^="product_"]').value);
+      const hasEmptyRow = remainingRows.some((row) => !row.querySelector('select[name^="product_"]').value);
+      if (remainingRows.length === 0 || (hasFilledRow && !hasEmptyRow)) addItemRow();
     }
     function updateRemoveButtons() {
       const rows = itemList.querySelectorAll('[data-item-row]');
       rows.forEach((row) => row.querySelector('[data-remove-row]').disabled = rows.length === 1);
     }
-    addButton.addEventListener('click', () => {
-      const index = nextIndex();
-      itemList.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__index__', index));
+    function updateItemRows() {
+      [...itemList.querySelectorAll('[data-item-row]')].forEach((row) => {
+        row.classList.toggle('is-filled', Boolean(row.querySelector('select[name^="product_"]').value));
+      });
       updateRemoveButtons();
-    });
+    }
+    function formSnapshot() {
+      const data = {};
+      new FormData(document.querySelector('form')).forEach((value, key) => {
+        if (key !== 'csrfmiddlewaretoken') data[key] = value;
+      });
+      return data;
+    }
+    function saveDraft(sectionName) {
+      localStorage.setItem(storageKey, JSON.stringify(formSnapshot()));
+      const status = document.querySelector(`[data-autosave-status="${sectionName}"]`);
+      if (status) status.textContent = 'Eingaben zwischengespeichert.';
+    }
+    function restoreDraft() {
+      let draft = null;
+      try { draft = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (error) { draft = null; }
+      if (!draft) return;
+      const hasTypedValues = [...document.querySelectorAll('input, textarea, select')]
+        .some((field) => field.name && field.name !== 'csrfmiddlewaretoken' && field.name !== 'quantity_1' && field.value);
+      if (hasTypedValues) return;
+      const productKeys = Object.keys(draft).filter((key) => key.startsWith('product_') || key.startsWith('quantity_'));
+      while (itemList.querySelectorAll('[data-item-row]').length < Math.max(1, productKeys.length / 2)) addItemRow();
+      Object.entries(draft).forEach(([name, value]) => {
+        const field = document.querySelector(`[name="${CSS.escape(name)}"]`);
+        if (field) field.value = value;
+      });
+    }
+    function periodParams() {
+      const params = new URLSearchParams();
+      ['reserved_from_date', 'reserved_from_time', 'reserved_until_date', 'reserved_until_time'].forEach((name) => {
+        const value = document.querySelector(`[name="${name}"]`).value;
+        if (value) params.set(name, value);
+      });
+      return params;
+    }
+    function hasCompletePeriod() {
+      return ['reserved_from_date', 'reserved_from_time', 'reserved_until_date', 'reserved_until_time']
+        .every((name) => document.querySelector(`[name="${name}"]`).value);
+    }
+    function updateAvailabilityOptions() {
+      const hasAvailability = Object.keys(availabilityByProduct).length > 0;
+      itemList.querySelectorAll('select[name^="product_"]').forEach((select) => {
+        [...select.options].forEach((option) => {
+          if (!option.value) return;
+          if (!option.dataset.baseLabel) option.dataset.baseLabel = option.textContent;
+          const info = availabilityByProduct[option.value];
+          if (!hasAvailability || !info) {
+            option.textContent = option.dataset.baseLabel;
+            option.disabled = false;
+            return;
+          }
+          option.textContent = `${option.dataset.baseLabel} · im Zeitraum frei: ${info.available}`;
+          option.disabled = info.available < 1;
+        });
+      });
+    }
+    async function refreshAvailability() {
+      if (!hasCompletePeriod()) {
+        availabilityByProduct = {};
+        availabilitySummary.textContent = 'Zeitraum eingeben, danach werden verfügbare Artikel angezeigt.';
+        availabilitySummary.className = 'availability';
+        updateAvailabilityOptions();
+        return;
+      }
+      try {
+        const response = await fetch(`${availabilityUrl}?${periodParams().toString()}`, {headers: {'Accept': 'application/json'}});
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Verfügbarkeit konnte nicht geprüft werden.');
+        availabilityByProduct = payload.products || {};
+        const availableCount = Object.values(availabilityByProduct).filter((info) => info.available > 0).length;
+        availabilitySummary.textContent = `${availableCount} Artikel sind im gewählten Zeitraum verfügbar.`;
+        availabilitySummary.className = availableCount ? 'availability ok' : 'availability error';
+        updateAvailabilityOptions();
+      } catch (error) {
+        availabilityByProduct = {};
+        availabilitySummary.textContent = error.message;
+        availabilitySummary.className = 'availability error';
+        updateAvailabilityOptions();
+      }
+    }
+
+    addButton.addEventListener('click', addItemRow);
     itemList.addEventListener('click', (event) => {
       if (!event.target.matches('[data-remove-row]')) return;
       event.target.closest('[data-item-row]').remove();
-      updateRemoveButtons();
+      ensureSingleTrailingEmptyRow();
+      updateItemRows();
     });
-    updateRemoveButtons();
+    itemList.addEventListener('change', (event) => {
+      if (!event.target.matches('select[name^="product_"]')) return;
+      ensureSingleTrailingEmptyRow();
+      updateItemRows();
+    });
+    document.querySelectorAll('[name^="reserved_"]').forEach((field) => field.addEventListener('change', refreshAvailability));
+    document.querySelectorAll('[data-save-next]').forEach((button) => button.addEventListener('click', () => {
+      saveDraft(button.dataset.saveNext);
+      const next = document.querySelector(`[data-step="${button.dataset.nextStep}"]`);
+      if (next) next.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }));
+    document.querySelector('form').addEventListener('submit', () => localStorage.removeItem(storageKey));
+    restoreDraft();
+    ensureSingleTrailingEmptyRow();
+    updateItemRows();
+    refreshAvailability();
   </script>
 </body>
 </html>
