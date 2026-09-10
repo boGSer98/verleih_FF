@@ -19,6 +19,8 @@
     .ok { color: #166534; font-weight: bold; }
     .issue { color: #9f1239; font-weight: bold; }
     .note { background: #f8fafc; border-left: 4px solid #1955a6; padding: 8px; margin-top: 14px; }
+    .accessory-group { margin-bottom: 6px; }
+    .accessory-group ul { margin-top: 3px; }
     footer { border-top: 1px solid #d4dde8; color: #5d6b7c; font-size: 9pt; margin-top: 28px; padding-top: 8px; }
   </style>
 </head>
@@ -68,13 +70,28 @@
           </td>
           <td>
             {% if item.handover_condition %}{{ item.handover_condition|linebreaksbr }}{% else %}<span class="meta">Nicht erfasst</span>{% endif %}
-            {% if item.handover_accessories.all %}
-              <br><strong>Mitgegebenes Zubehör:</strong>
-              <ul>
-                {% for accessory in item.handover_accessories.all %}
-                  <li>{{ accessory.quantity }} × {{ accessory.name }} · {% if accessory.required %}Pflicht{% else %}Optional{% endif %}</li>
-                {% endfor %}
-              </ul>
+            {% if item.required_accessories_for_pdf or item.optional_accessories_for_pdf %}
+              <br>
+              {% if item.required_accessories_for_pdf %}
+                <div class="accessory-group">
+                  <strong>Pflicht:</strong>
+                  <ul>
+                    {% for accessory in item.required_accessories_for_pdf %}
+                      <li>{{ accessory.quantity }} × {{ accessory.name }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+              {% if item.optional_accessories_for_pdf %}
+                <div class="accessory-group">
+                  <strong>Optional:</strong>
+                  <ul>
+                    {% for accessory in item.optional_accessories_for_pdf %}
+                      <li>{{ accessory.quantity }} × {{ accessory.name }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
             {% endif %}
           </td>
           <td>

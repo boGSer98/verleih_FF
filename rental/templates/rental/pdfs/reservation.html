@@ -17,6 +17,8 @@
     th { background: #eef4fb; }
     .amounts { width: 55%; margin-left: auto; }
     .note { background: #f8fafc; border-left: 4px solid #1955a6; padding: 8px; margin-top: 14px; }
+    .accessory-group { margin-bottom: 6px; }
+    .accessory-group ul { margin-top: 3px; }
     footer { border-top: 1px solid #d4dde8; color: #5d6b7c; font-size: 9pt; margin-top: 28px; padding-top: 8px; }
   </style>
 </head>
@@ -62,12 +64,27 @@
             {% if item.product.storage_location %}<span class="meta">Lagerort: {{ item.product.storage_location }}</span>{% endif %}
           </td>
           <td>
-            {% if item.product.accessories.all %}
-              <ul>
-                {% for accessory in item.product.accessories.all %}
-                  <li>{{ accessory.quantity }} × {{ accessory.name }}{% if accessory.required %} · Pflichtbestandteil{% endif %}</li>
-                {% endfor %}
-              </ul>
+            {% if item.required_accessories_for_pdf or item.optional_accessories_for_pdf %}
+              {% if item.required_accessories_for_pdf %}
+                <div class="accessory-group">
+                  <strong>Pflicht:</strong>
+                  <ul>
+                    {% for accessory in item.required_accessories_for_pdf %}
+                      <li>{{ accessory.quantity }} × {{ accessory.name }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+              {% if item.optional_accessories_for_pdf %}
+                <div class="accessory-group">
+                  <strong>Optional:</strong>
+                  <ul>
+                    {% for accessory in item.optional_accessories_for_pdf %}
+                      <li>{{ accessory.quantity }} × {{ accessory.name }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
             {% else %}
               Keine Zubehördaten erfasst.
             {% endif %}

@@ -995,7 +995,24 @@ class DocumentPdfTests(TestCase):
             stock_quantity=1,
             storage_location='Lager 2',
         )
-        ProductAccessory.objects.create(product=self.product, name='Stromkabel', quantity=1)
+        self.required_accessory = ProductAccessory.objects.create(
+            product=self.product,
+            name='Stromkabel',
+            quantity=1,
+            required=True,
+        )
+        self.optional_accessory = ProductAccessory.objects.create(
+            product=self.product,
+            name='Verlängerungskabel',
+            quantity=2,
+            required=False,
+        )
+        self.unreserved_optional_accessory = ProductAccessory.objects.create(
+            product=self.product,
+            name='Transportkarre',
+            quantity=1,
+            required=False,
+        )
         self.borrower = Borrower.objects.create(
             name='PDF Entleiher',
             organization='Förderverein PDF',
@@ -1012,7 +1029,8 @@ class DocumentPdfTests(TestCase):
             expected_donation=20,
             notes='Bitte sauber zurückgeben.',
         )
-        RentalCaseItem.objects.create(rental_case=self.case, product=self.product, quantity=1)
+        self.item = RentalCaseItem.objects.create(rental_case=self.case, product=self.product, quantity=1)
+        self.item.handover_accessories.set([self.required_accessory, self.optional_accessory])
 
     def _create_handover_protocol(self):
         protocol = Protocol.objects.create(
@@ -1056,6 +1074,20 @@ class DocumentPdfTests(TestCase):
         document.file.open('rb')
         self.assertEqual(document.file.read(4), b'%PDF')
         document.file.close()
+
+    def test_pdf_accessories_are_grouped_by_required_and_reserved_optional(self):
+        with patch('rental.pdf.HTML') as html_class:
+            html_class.return_value.write_pdf.return_value = b'%PDF-1.7 grouped accessories'
+
+            create_or_replace_document(self.case, Document.DocumentType.RESERVATION)
+
+        html = html_class.call_args.kwargs['string']
+        self.assertIn('<strong>Pflicht:</strong>', html)
+        self.assertIn('1 × Stromkabel', html)
+        self.assertIn('<strong>Optional:</strong>', html)
+        self.assertIn('2 × Verlängerungskabel', html)
+        self.assertNotIn('Transportkarre', html)
+        self.assertNotIn('Pflichtbestandteil', html)
 
     def test_handover_pdf_is_generated_with_latest_protocol_and_signatures(self):
         self._create_handover_protocol()

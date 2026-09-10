@@ -55,10 +55,27 @@ def _latest_protocol(rental_case, document_type):
     return rental_case.protocols.filter(protocol_type=protocol_type).select_related('performed_by').first()
 
 
+def _split_accessories_for_pdf(item):
+    required_accessories = [accessory for accessory in item.product.accessories.all() if accessory.required]
+    optional_accessories = [accessory for accessory in item.handover_accessories.all() if not accessory.required]
+    return required_accessories, optional_accessories
+
+
+def _items_for_pdf(rental_case):
+    items = list(
+        rental_case.items
+        .select_related('product')
+        .prefetch_related('product__accessories', 'handover_accessories')
+    )
+    for item in items:
+        item.required_accessories_for_pdf, item.optional_accessories_for_pdf = _split_accessories_for_pdf(item)
+    return items
+
+
 def render_document_pdf(rental_case, document_type, *, request=None):
     template_name = DOCUMENT_TYPE_TO_TEMPLATE[document_type]
     protocol = _latest_protocol(rental_case, document_type)
-    items = list(rental_case.items.select_related('product').prefetch_related('product__accessories'))
+    items = _items_for_pdf(rental_case)
     protocol_photos = []
     for item in items:
         item.return_protocol_photos = []
