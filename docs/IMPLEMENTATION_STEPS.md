@@ -120,8 +120,8 @@ Aufgaben:
 2. Artikelpositionen mit Menge, Zustand und Zubehör anzeigen.
 3. Bemerkungen und Hinweise erfassen.
 4. Entleiherdaten bestätigen.
-5. Unterschrift Entleiher per Touch erfassen.
-6. Unterschrift Verein/Helfer per Touch erfassen.
+5. Unterschrift Entleiher per Touch erfassen und Klarname verpflichtend dokumentieren.
+6. Unterschrift Verein/Helfer per Touch erfassen und Klarname verpflichtend dokumentieren.
 7. Übergabeprotokoll speichern.
 8. Status auf `Übergeben` setzen.
 9. Pflichtzubehör je Artikel bei der Übergabe bestätigen; optionales Zubehör nur dokumentieren, wenn es tatsächlich mitgegeben wurde. Status: umgesetzt.
@@ -129,7 +129,7 @@ Aufgaben:
 Abnahmekriterien:
 
 - Übergabe kann ohne Django-Admin durchgeführt werden.
-- Signaturen werden gespeichert.
+- Signaturen und lesbare Klarnamen werden gespeichert.
 - Protokoll ist dem Vorgang zugeordnet.
 - Mitgegebenes Zubehör ist am Vorgang gespeichert und in Übergabe, Rücknahme sowie PDFs nachvollziehbar.
 
@@ -148,7 +148,7 @@ Aufgaben:
    - beschädigt
    - Reinigungsbedarf
 3. Bemerkungen und Schadenbeträge erfassen.
-4. Unterschriften erfassen.
+4. Unterschriften inklusive lesbarer Klarnamen erfassen.
 5. Rücknahmeprotokoll speichern.
 6. Rücknahmefotos für Schäden/Verschmutzungen hochladen und im Protokoll-PDF ausgeben. Status: umgesetzt als optionale Protokollfotos.
 7. Status auf `Zurückgenommen` oder `Klärung nötig` setzen.
@@ -183,7 +183,7 @@ Aufgaben:
 Abnahmekriterien:
 
 - PDFs werden serverseitig erzeugt.
-- Signaturen sind im PDF sichtbar.
+- Signaturen und lesbare Klarnamen sind im PDF sichtbar.
 - Dokumente sind am Vorgang abrufbar.
 
 ## Phase 7 – Mailversand

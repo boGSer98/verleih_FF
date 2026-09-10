@@ -191,9 +191,9 @@ class RentalCaseAdmin(admin.ModelAdmin):
 
 @admin.register(Protocol)
 class ProtocolAdmin(admin.ModelAdmin):
-    list_display = ['rental_case', 'protocol_type', 'performed_at', 'performed_by']
+    list_display = ['rental_case', 'protocol_type', 'performed_at', 'performed_by', 'borrower_signature_name', 'club_signature_name']
     list_filter = ['protocol_type', 'performed_at']
-    search_fields = ['rental_case__number', 'rental_case__borrower__name']
+    search_fields = ['rental_case__number', 'rental_case__borrower__name', 'borrower_signature_name', 'club_signature_name']
     inlines = [ProtocolPhotoInline]
 
 

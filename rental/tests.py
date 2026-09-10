@@ -769,6 +769,8 @@ class HandoverViewTests(TestCase):
         self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
         self.assertIn('Unterschrift Entleiher', content)
         self.assertIn('Unterschrift Verein / Helfer', content)
+        self.assertIn('name="borrower_signature_name"', content)
+        self.assertIn('name="club_signature_name"', content)
         self.assertIn('touch-action:none', content)
         self.assertIn('min-height:54px', content)
         self.assertIn('Mitgegebenes Zubehör auswählen', content)
@@ -785,6 +787,8 @@ class HandoverViewTests(TestCase):
             f'note_{self.item.pk}': 'direkt vor Ort geprüft',
             f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk), str(self.optional_accessory.pk)],
             'notes': 'Übergabe am Vereinsheim',
+            'borrower_signature_name': 'Erika Beispiel',
+            'club_signature_name': 'Max Helfer',
             'borrower_signature_data': self.signature_data,
             'club_signature_data': self.signature_data,
         })
@@ -801,6 +805,8 @@ class HandoverViewTests(TestCase):
             ['Seitenteile', 'LED-Lichterkette'],
         )
         self.assertEqual(protocol.notes, 'Übergabe am Vereinsheim')
+        self.assertEqual(protocol.borrower_signature_name, 'Erika Beispiel')
+        self.assertEqual(protocol.club_signature_name, 'Max Helfer')
         self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
         self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
 
@@ -810,6 +816,8 @@ class HandoverViewTests(TestCase):
         response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
             f'condition_{self.item.pk}': 'vollständig und sauber',
             f'handover_accessories_{self.item.pk}': [str(self.optional_accessory.pk)],
+            'borrower_signature_name': 'Erika Beispiel',
+            'club_signature_name': 'Max Helfer',
             'borrower_signature_data': self.signature_data,
             'club_signature_data': self.signature_data,
         })
@@ -826,6 +834,8 @@ class HandoverViewTests(TestCase):
 
         response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
             f'condition_{self.item.pk}': 'vollständig',
+            'borrower_signature_name': 'Erika Beispiel',
+            'club_signature_name': 'Max Helfer',
             'borrower_signature_data': '',
             'club_signature_data': '',
         })
@@ -834,6 +844,24 @@ class HandoverViewTests(TestCase):
         self.case.refresh_from_db()
         self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
         self.assertEqual(self.case.protocols.count(), 0)
+
+    def test_handover_post_requires_signature_names(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
+            f'condition_{self.item.pk}': 'vollständig',
+            f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk)],
+            'borrower_signature_name': '',
+            'club_signature_name': 'Max Helfer',
+            'borrower_signature_data': self.signature_data,
+            'club_signature_data': self.signature_data,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
+        self.assertEqual(self.case.protocols.count(), 0)
+        self.assertContains(response, 'Name Entleiher-Unterschrift muss als Klarname eingegeben werden.')
 
 
 class ReturnViewTests(TestCase):
@@ -874,6 +902,8 @@ class ReturnViewTests(TestCase):
             f'damage_amount_{self.item.pk}': '0',
             f'return_note_{self.item.pk}': 'vor Ort geprüft',
             'notes': 'Rücknahme am Vereinsheim',
+            'borrower_signature_name': 'Max Rückgabe',
+            'club_signature_name': 'Rita Helferin',
             'borrower_signature_data': self.signature_data,
             'club_signature_data': self.signature_data,
         }
@@ -895,6 +925,8 @@ class ReturnViewTests(TestCase):
         content = response.content.decode('utf-8')
         self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
         self.assertIn('Geführte Rücknahme', content)
+        self.assertIn('name="borrower_signature_name"', content)
+        self.assertIn('name="club_signature_name"', content)
         self.assertIn('Entleiher und Vorgang geprüft', content)
         self.assertIn('Artikel, Schäden und Zubehör prüfen', content)
         self.assertIn('Alle Artikel, Schäden und Zubehöre wurden geprüft', content)
@@ -926,6 +958,8 @@ class ReturnViewTests(TestCase):
         self.assertIn('Artikel vollständig', self.item.return_condition)
         self.assertIn('Zubehör vollständig', self.item.return_condition)
         self.assertEqual(protocol.notes, 'Rücknahme am Vereinsheim')
+        self.assertEqual(protocol.borrower_signature_name, 'Max Rückgabe')
+        self.assertEqual(protocol.club_signature_name, 'Rita Helferin')
         self.assertTrue(protocol.borrower_signature.name.startswith('signatures/signature-'))
         self.assertTrue(protocol.club_signature.name.startswith('signatures/signature-'))
 
@@ -1038,6 +1072,8 @@ class DocumentPdfTests(TestCase):
             protocol_type=Protocol.ProtocolType.HANDOVER,
             performed_by=self.user,
             notes='Übergabe vor Ort protokolliert.',
+            borrower_signature_name='PDF Entleiher',
+            club_signature_name='PDF Helfer',
         )
         protocol.borrower_signature.save('borrower.png', ContentFile(b'borrower-signature-bytes' * 10), save=False)
         protocol.club_signature.save('club.png', ContentFile(b'club-signature-bytes' * 10), save=False)
@@ -1051,6 +1087,8 @@ class DocumentPdfTests(TestCase):
             protocol_type=Protocol.ProtocolType.RETURN,
             performed_by=self.user,
             notes='Rücknahme mit Klärbetrag protokolliert.',
+            borrower_signature_name='PDF Rückgabe',
+            club_signature_name='PDF Rücknahmehelfer',
         )
         protocol.borrower_signature.save('borrower-return.png', ContentFile(b'borrower-return-signature-bytes' * 10), save=False)
         protocol.club_signature.save('club-return.png', ContentFile(b'club-return-signature-bytes' * 10), save=False)
@@ -1099,6 +1137,17 @@ class DocumentPdfTests(TestCase):
         document.file.open('rb')
         self.assertEqual(document.file.read(4), b'%PDF')
         document.file.close()
+
+    def test_protocol_pdf_contains_readable_signature_names(self):
+        self._create_handover_protocol()
+        with patch('rental.pdf.HTML') as html_class:
+            html_class.return_value.write_pdf.return_value = b'%PDF-1.7 signature names'
+
+            create_or_replace_document(self.case, Document.DocumentType.HANDOVER)
+
+        html = html_class.call_args.kwargs['string']
+        self.assertIn('Name: PDF Entleiher', html)
+        self.assertIn('Name: PDF Helfer', html)
 
     def test_return_pdf_is_generated_with_latest_protocol_and_clarification_amount(self):
         self._create_return_protocol()

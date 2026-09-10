@@ -159,10 +159,12 @@
   <section class="signatures">
     <div class="signature-box">
       <strong>Entleiher</strong>
+      {% if protocol and protocol.borrower_signature_name %}<div>Name: {{ protocol.borrower_signature_name }}</div>{% endif %}
       {% if borrower_signature_data_url %}<img src="{{ borrower_signature_data_url }}" alt="Unterschrift Entleiher">{% else %}<p class="meta">Keine Signatur gespeichert.</p>{% endif %}
     </div>
     <div class="signature-box">
       <strong>Verein / Helfer</strong>
+      {% if protocol and protocol.club_signature_name %}<div>Name: {{ protocol.club_signature_name }}</div>{% endif %}
       {% if club_signature_data_url %}<img src="{{ club_signature_data_url }}" alt="Unterschrift Verein">{% else %}<p class="meta">Keine Signatur gespeichert.</p>{% endif %}
     </div>
   </section>

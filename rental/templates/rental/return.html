@@ -136,6 +136,8 @@
 
       <fieldset class="card step" data-step="4" disabled>
         <h2><span class="step-number">4</span>Unterschrift Entleiher</h2>
+        <label for="borrower_signature_name">Klarname Entleiher</label>
+        <input id="borrower_signature_name" name="borrower_signature_name" type="text" required autocomplete="name" value="{{ rental_case.borrower.name }}" placeholder="Vor- und Nachname lesbar eintragen">
         <canvas data-signature="borrower_signature_data" aria-label="Unterschriftsfeld Entleiher"></canvas>
         <input type="hidden" name="borrower_signature_data" id="borrower_signature_data">
         <div class="button-row"><button type="button" class="secondary" data-clear="borrower_signature_data">Unterschrift löschen</button></div>
@@ -144,6 +146,8 @@
 
       <fieldset class="card step" data-step="5" disabled>
         <h2><span class="step-number">5</span>Unterschrift Verein / Helfer</h2>
+        <label for="club_signature_name">Klarname Verein / Helfer</label>
+        <input id="club_signature_name" name="club_signature_name" type="text" required autocomplete="name" value="{{ request.user.get_full_name|default:request.user.get_username }}" placeholder="Vor- und Nachname lesbar eintragen">
         <canvas data-signature="club_signature_data" aria-label="Unterschriftsfeld Verein"></canvas>
         <input type="hidden" name="club_signature_data" id="club_signature_data">
         <div class="button-row"><button type="button" class="secondary" data-clear="club_signature_data">Unterschrift löschen</button></div>

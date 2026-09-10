@@ -479,6 +479,13 @@ def _decode_signature(data_url, label):
     return ContentFile(raw, name=f'signature-{uuid.uuid4().hex}.png')
 
 
+def _signature_printed_name(post_data, field_name, label):
+    name = post_data.get(field_name, '').strip()
+    if not name:
+        raise ValueError(f'{label} muss als Klarname eingegeben werden.')
+    return name
+
+
 @login_required
 @permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def handover(request, pk):
@@ -497,7 +504,11 @@ def handover(request, pk):
 
     if request.method == 'POST':
         error = None
+        borrower_signature_name = ''
+        club_signature_name = ''
         try:
+            borrower_signature_name = _signature_printed_name(request.POST, 'borrower_signature_name', 'Name Entleiher-Unterschrift')
+            club_signature_name = _signature_printed_name(request.POST, 'club_signature_name', 'Name Verein-/Helfer-Unterschrift')
             borrower_signature = _decode_signature(request.POST.get('borrower_signature_data', ''), 'Unterschrift Entleiher')
             club_signature = _decode_signature(request.POST.get('club_signature_data', ''), 'Unterschrift Verein')
         except ValueError as exc:
@@ -540,6 +551,8 @@ def handover(request, pk):
                     rental_case=rental_case,
                     protocol_type=Protocol.ProtocolType.HANDOVER,
                     performed_by=request.user,
+                    borrower_signature_name=borrower_signature_name,
+                    club_signature_name=club_signature_name,
                     notes=request.POST.get('notes', '').strip(),
                 )
                 protocol.borrower_signature.save(borrower_signature.name, borrower_signature, save=False)
@@ -597,6 +610,8 @@ def return_case(request, pk):
     if request.method == 'POST':
         error = None
         has_issue = False
+        borrower_signature_name = ''
+        club_signature_name = ''
         try:
             _validate_required_choice(
                 request.POST,
@@ -610,6 +625,8 @@ def return_case(request, pk):
                 'Abschnitt „Alle Artikel einzeln geprüft“',
                 {'yes'},
             )
+            borrower_signature_name = _signature_printed_name(request.POST, 'borrower_signature_name', 'Name Entleiher-Unterschrift')
+            club_signature_name = _signature_printed_name(request.POST, 'club_signature_name', 'Name Verein-/Helfer-Unterschrift')
             borrower_signature = _decode_signature(request.POST.get('borrower_signature_data', ''), 'Unterschrift Entleiher')
             club_signature = _decode_signature(request.POST.get('club_signature_data', ''), 'Unterschrift Verein')
         except ValueError as exc:
@@ -671,6 +688,8 @@ def return_case(request, pk):
                     rental_case=rental_case,
                     protocol_type=Protocol.ProtocolType.RETURN,
                     performed_by=request.user,
+                    borrower_signature_name=borrower_signature_name,
+                    club_signature_name=club_signature_name,
                     notes=request.POST.get('notes', '').strip(),
                 )
                 protocol.borrower_signature.save(borrower_signature.name, borrower_signature, save=False)
