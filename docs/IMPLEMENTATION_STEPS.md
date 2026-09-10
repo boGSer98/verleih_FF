@@ -261,7 +261,7 @@ Aufgaben:
 
 1. Synology-Ordnerstruktur dokumentieren.
 2. Docker Compose für produktive Nutzung ergänzen.
-3. `.env` für Produktion beschreiben.
+3. `.env` für Produktion beschreiben. Status: vorbereitet für `verleih.it-service-ahd.de` hinter Nginx Proxy Manager mit `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` und sicheren Cookie-/Proxy-Header-Variablen.
 4. Datenbank-Backup-Skript erstellen.
 5. Medien-/PDF-Backup beschreiben.
 6. Reverse-Proxy-/HTTPS-Betrieb dokumentieren.

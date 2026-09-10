@@ -49,6 +49,27 @@ Docker veröffentlicht den Host-Port `8100` auf den internen Container-Port `800
 
 Die Startseite ist ein login-geschütztes, mobile-optimiertes Verleih-Dashboard für Tagesaufgaben.
 
+## Zugriff über Nginx Proxy Manager
+
+Für den lokalen AHD-Betrieb ist die Compose-Konfiguration auf den Host-Port `8100` und die Domain vorbereitet:
+
+```text
+http://192.168.178.120:8100/
+https://verleih.it-service-ahd.de/
+```
+
+In Portainer müssen dafür mindestens diese Environment-Variablen gesetzt sein:
+
+```env
+ALLOWED_HOSTS=localhost,127.0.0.1,192.168.178.120,verleih.it-service-ahd.de
+CSRF_TRUSTED_ORIGINS=https://verleih.it-service-ahd.de
+USE_X_FORWARDED_PROTO=1
+SESSION_COOKIE_SECURE=1
+CSRF_COOKIE_SECURE=1
+```
+
+Im Nginx Proxy Manager zeigt der Proxy-Host per `http` auf `192.168.178.120` Port `8100`. Ein `400 Bad Request` beim Domainaufruf bedeutet in der Regel, dass `verleih.it-service-ahd.de` noch nicht in `ALLOWED_HOSTS` der laufenden Django-Umgebung angekommen ist.
+
 ## Synology-Zielbetrieb
 
 Empfohlenes Zielverzeichnis auf der NAS:

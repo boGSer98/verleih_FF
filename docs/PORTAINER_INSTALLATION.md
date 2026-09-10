@@ -60,12 +60,12 @@ Wichtig: Passwörter und `SECRET_KEY` individuell ersetzen, nicht die Beispielwe
 ```env
 DEBUG=0
 SECRET_KEY=<langen-zufaelligen-django-secret-key-eintragen>
-ALLOWED_HOSTS=localhost,127.0.0.1,<hostname-oder-ip-des-portainer-hosts>
-CSRF_TRUSTED_ORIGINS=https://<domain-oder-hostname>
+ALLOWED_HOSTS=localhost,127.0.0.1,192.168.178.120,verleih.it-service-ahd.de
+CSRF_TRUSTED_ORIGINS=https://verleih.it-service-ahd.de
 SECURE_SSL_REDIRECT=0
-USE_X_FORWARDED_PROTO=0
-SESSION_COOKIE_SECURE=0
-CSRF_COOKIE_SECURE=0
+USE_X_FORWARDED_PROTO=1
+SESSION_COOKIE_SECURE=1
+CSRF_COOKIE_SECURE=1
 POSTGRES_DB=verleih_ff
 POSTGRES_USER=verleih_ff
 POSTGRES_PASSWORD=<datenbankpasswort>
@@ -157,20 +157,33 @@ Empfehlung:
 Dann `ALLOWED_HOSTS` auf die echte Domain setzen, z. B.:
 
 ```env
-ALLOWED_HOSTS=verleih.example.org
+ALLOWED_HOSTS=localhost,127.0.0.1,192.168.178.120,verleih.it-service-ahd.de
 ```
 
 Bei HTTPS-Betrieb hinter Reverse Proxy zusätzlich die öffentliche Origin eintragen und sichere Cookies aktivieren:
 
 ```env
-CSRF_TRUSTED_ORIGINS=https://verleih.example.org
-SECURE_SSL_REDIRECT=1
+CSRF_TRUSTED_ORIGINS=https://verleih.it-service-ahd.de
+SECURE_SSL_REDIRECT=0
 USE_X_FORWARDED_PROTO=1
 SESSION_COOKIE_SECURE=1
 CSRF_COOKIE_SECURE=1
-SECURE_HSTS_SECONDS=31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS=1
+SECURE_HSTS_SECONDS=0
+SECURE_HSTS_INCLUDE_SUBDOMAINS=0
 ```
+
+Für den vorhandenen Nginx Proxy Manager reicht als Proxy-Host:
+
+```text
+Domain Names: verleih.it-service-ahd.de
+Scheme: http
+Forward Hostname / IP: 192.168.178.120
+Forward Port: 8100
+SSL Certificate: Let's Encrypt für verleih.it-service-ahd.de
+Force SSL: aktiv
+```
+
+Wichtig: Der `400 Bad Request` beim Domainaufruf entsteht in Django, wenn der weitergereichte Hostname nicht in `ALLOWED_HOSTS` steht. Nach Änderung der Environment-Variablen den Stack in Portainer neu deployen bzw. den `web`-Container neu erstellen.
 
 `SECURE_HSTS_PRELOAD=1` nur setzen, wenn die Domain inklusive Subdomains dauerhaft ausschließlich per HTTPS erreichbar ist und bewusst in Browser-Preload-Listen aufgenommen werden soll.
 
@@ -220,6 +233,7 @@ Prüfen:
 - ist Port `8100` am Host frei und erreichbar?
 - wurde der Stack-Port korrekt als `8100:8000` veröffentlicht?
 - steht Hostname/IP in `ALLOWED_HOSTS`?
+- bei `400 Bad Request` über `https://verleih.it-service-ahd.de/`: enthält `ALLOWED_HOSTS` exakt `verleih.it-service-ahd.de` und wurde der `web`-Container nach der Änderung neu gestartet?
 
 ### Mailversand funktioniert später nicht
 

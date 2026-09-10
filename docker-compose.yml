@@ -19,7 +19,7 @@ services:
     environment:
       DEBUG: ${DEBUG:-0}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY muss gesetzt sein}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,verleih.it-service-ahd.de}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,192.168.178.120,verleih.it-service-ahd.de}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://verleih.it-service-ahd.de}
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-0}
       USE_X_FORWARDED_PROTO: ${USE_X_FORWARDED_PROTO:-0}
