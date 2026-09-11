@@ -161,7 +161,7 @@ Abnahmekriterien:
 
 ## Phase 6 – PDF-Dokumente
 
-Status: PDF-Basislayout, Reservierungsbestätigung, Übergabeprotokoll, Rücknahmeprotokoll und Abschlussübersicht mit Dateiablage umgesetzt.
+Status: PDF-Basislayout, Reservierungsbestätigung, Übergabeprotokoll, Rücknahmeprotokoll, Abschlussübersicht und Zuwendungsbestätigung nach BMF-Vordruck 034122 mit Dateiablage umgesetzt.
 
 Ziel: Alle relevanten Dokumente werden automatisch als PDF erzeugt und am Vorgang gespeichert.
 
@@ -178,7 +178,8 @@ Aufgaben:
 3. Übergabeprotokoll mit Signaturen erzeugen.
 4. Rücknahmeprotokoll mit Signaturen erzeugen.
 5. Abschlussübersicht erzeugen.
-6. Dokumentendatensätze mit Dateiablage speichern.
+6. Zuwendungsbestätigung als eigener Dokumenttyp nach BMF-Vordruck 034122 erzeugen.
+7. Dokumentendatensätze mit Dateiablage speichern.
 
 Abnahmekriterien:
 
@@ -213,7 +214,7 @@ Abnahmekriterien:
 
 ## Phase 8 – Spenden-/Zahlungsprozess
 
-Status: Dashboard-Formular zum Dokumentieren von Spendenentscheidung, Zahlungsart, Betrag, Zahlungsnotiz, Eingangszeitpunkt und Statuswechsel umgesetzt.
+Status: Dashboard-Formular zum Dokumentieren von Spendenentscheidung, Zahlungsart, Betrag, Zahlungsnotiz, Eingangszeitpunkt sowie Ausstellung/Storno einer Zuwendungsbestätigung umgesetzt.
 
 Ziel: Erwartete und erhaltene Spenden/Zahlungen sind nachvollziehbar.
 
@@ -224,6 +225,7 @@ Aufgaben:
 3. Zahlungsnotiz und Eingangsdatum speichern. Status: umgesetzt.
 4. Offene Spenden im Dashboard anzeigen. Status: umgesetzt mit Formular „Spendenentscheidung speichern“.
 5. Abschluss blockieren oder warnen, wenn Spende offen ist. Status: umgesetzt als blockierender Statuswechsel bei offener Spendenentscheidung.
+6. Zuwendungsbestätigung aus Vorgängen mit erhaltener Spende erzeugen. Status: umgesetzt mit eigenem Fachdatensatz, pflegbaren Geber-/Vereinsdaten, Berechtigung `can_issue_donation_receipt`, Bescheinigungsnummer, PDF nach BMF-Vordruck 034122 und Storno.
 
 Abnahmekriterien:
 

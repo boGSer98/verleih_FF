@@ -193,6 +193,32 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2>Zuwendungsbestätigung</h2>
+      <p class="muted">Ausstellung nach BMF-Vordruck 034122 nur durch Administratoren oder Benutzer mit Berechtigung.</p>
+      {% if donation_receipts %}
+        <div class="grid">
+        {% for receipt in donation_receipts %}
+          <article{% if receipt.status == 'cancelled' %} class="locked"{% endif %}>
+            <h3>{{ receipt.receipt_number }} · {{ receipt.get_status_display }}</h3>
+            <p>{{ receipt.donor_name }} · {{ receipt.donation_amount }} € · {{ receipt.donation_date|date:"d.m.Y" }}</p>
+            <div class="button-row">
+              {% if receipt.document %}<a class="button secondary" href="{% url 'rental:document_download' receipt.document.pk %}" target="_blank" rel="noopener">PDF öffnen</a>{% endif %}
+              {% if can_issue_donation_receipt and receipt.status == 'issued' %}
+                <form class="inline-form" method="post" action="{% url 'rental:donation_receipt_cancel' receipt.pk %}">{% csrf_token %}<input type="hidden" name="cancel_reason" value="Storniert aus Vorgang"><button class="secondary" type="submit">Stornieren</button></form>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">Noch keine Zuwendungsbestätigung erstellt.</p>
+      {% endif %}
+      {% if can_issue_donation_receipt %}
+        <div class="button-row"><a class="button" href="{{ card.donation_receipt_url }}">Zuwendungsbestätigung erstellen</a></div>
+      {% endif %}
+    </section>
+
     {% if latest_handover_protocol or latest_return_protocol %}
     <section class="card">
       <h2>Protokollnotizen</h2>

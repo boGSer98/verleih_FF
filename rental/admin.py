@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .emailing import send_document_email
-from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
+from .models import Borrower, Document, DonationReceipt, DonationReceiptIssuerProfile, Product, ProductAccessory, ProductCategory, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
 from .pdf import create_or_replace_document
 
 
@@ -229,3 +229,37 @@ class DocumentAdmin(admin.ModelAdmin):
             self.message_user(request, f'{sent} Dokument(e) per E-Mail versendet.', messages.SUCCESS)
         if failed:
             self.message_user(request, f'{failed} Dokument(e) konnten nicht versendet werden.', messages.WARNING)
+
+
+@admin.register(DonationReceiptIssuerProfile)
+class DonationReceiptIssuerProfileAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tax_office', 'tax_number', 'active', 'updated_at']
+    list_filter = ['active', 'membership_fees_deductible']
+    search_fields = ['name', 'tax_office', 'tax_number', 'city']
+    fieldsets = [
+        ('Verein / Aussteller', {'fields': ['name', 'street', 'postal_code', 'city', 'active']}),
+        ('Finanzamt / Bescheide', {'fields': ['tax_office', 'tax_number', 'exemption_notice_date', 'determination_notice_date']}),
+        ('Steuerbegünstigte Zwecke', {'fields': ['statutory_purposes', 'membership_fees_deductible']}),
+        ('Ausstellung', {'fields': ['default_issue_place', 'default_signer_name', 'default_signer_function']}),
+    ]
+
+
+@admin.register(DonationReceipt)
+class DonationReceiptAdmin(admin.ModelAdmin):
+    list_display = ['receipt_number', 'rental_case', 'donor_name', 'donation_amount', 'donation_date', 'status', 'issued_at', 'issued_by']
+    list_filter = ['status', 'donation_date', 'issued_at', 'is_membership_fee', 'is_expense_reimbursement_waiver']
+    search_fields = ['receipt_number', 'rental_case__number', 'donor_name', 'donor_organization', 'donor_email', 'issuer_name']
+    readonly_fields = ['receipt_number', 'document', 'donation_amount_words', 'issued_at', 'issued_by', 'cancelled_at', 'cancelled_by', 'created_at', 'updated_at']
+    fieldsets = [
+        ('Status', {'fields': ['rental_case', 'document', 'receipt_number', 'status', 'issued_at', 'issued_by', 'cancelled_at', 'cancelled_by', 'cancel_reason']}),
+        ('Zuwendender', {'fields': ['donor_name', 'donor_organization', 'donor_street', 'donor_postal_code', 'donor_city', 'donor_email']}),
+        ('Zuwendung', {'fields': ['donation_amount', 'donation_amount_words', 'donation_date', 'is_membership_fee', 'is_expense_reimbursement_waiver']}),
+        ('Verein / Aussteller', {'fields': ['issuer_name', 'issuer_street', 'issuer_postal_code', 'issuer_city', 'tax_office', 'tax_number', 'exemption_notice_date', 'determination_notice_date', 'statutory_purposes', 'membership_fees_deductible']}),
+        ('Ausstellung', {'fields': ['issue_place', 'signer_name', 'signer_function']}),
+        ('Technik', {'fields': ['created_at', 'updated_at']}),
+    ]
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status == DonationReceipt.Status.ISSUED:
+            return request.user.has_perm('rental.can_issue_donation_receipt')
+        return super().has_change_permission(request, obj=obj)

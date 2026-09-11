@@ -10,6 +10,8 @@ GROUP_READONLY = 'Verleih Lesen/Auswertung'
 RENTAL_MODELS = [
     'borrower',
     'document',
+    'donationreceipt',
+    'donationreceiptissuerprofile',
     'product',
     'productaccessory',
     'productcategory',
@@ -42,11 +44,14 @@ GROUP_PERMISSION_MATRIX = {
 
 def permission_codes_for_group(group_name):
     model_matrix = GROUP_PERMISSION_MATRIX[group_name]
-    return {
+    codes = {
         f'{action}_{model}'
         for model, actions in model_matrix.items()
         for action in actions
     }
+    if group_name == GROUP_ADMIN:
+        codes.add('can_issue_donation_receipt')
+    return codes
 
 
 def ensure_rental_groups(app_config=None, verbosity=0, **kwargs):
@@ -72,5 +77,7 @@ def ensure_rental_groups(app_config=None, verbosity=0, **kwargs):
             if code in permissions
         ]
         group.permissions.set(expected_permissions)
+        if group_name == GROUP_ADMIN and 'can_issue_donation_receipt' in permissions:
+            group.permissions.add(permissions['can_issue_donation_receipt'])
         if verbosity >= 2:
             print(f'Gruppe „{group_name}“ mit {len(expected_permissions)} Recht(en) aktualisiert.')

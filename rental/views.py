@@ -18,8 +18,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .emailing import send_document_email
-from .models import Borrower, Document, Product, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
-from .pdf import create_or_replace_document, document_filename
+from .forms import DonationReceiptForm
+from .models import Borrower, Document, DonationReceipt, DonationReceiptIssuerProfile, Product, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
+from .pdf import create_donation_receipt_document, create_or_replace_document, document_filename
 
 
 def _admin_change_url(rental_case):
@@ -62,6 +63,7 @@ def _case_card(rental_case):
         'handover_document_send_url': reverse('rental:handover_document_send', args=[rental_case.pk]),
         'return_document_send_url': reverse('rental:return_document_send', args=[rental_case.pk]),
         'closing_document_send_url': reverse('rental:closing_document_send', args=[rental_case.pk]),
+        'donation_receipt_url': reverse('rental:donation_receipt_create', args=[rental_case.pk]),
         'donation_received_url': reverse('rental:donation_received', args=[rental_case.pk]),
         'complete_url': reverse('rental:case_complete', args=[rental_case.pk]),
         'next_action': _case_next_action(rental_case),
@@ -321,6 +323,7 @@ def case_detail(request, pk):
             'items__handover_accessories',
             'items__return_photos',
             'documents',
+            'donation_receipts__document',
             'protocols__photos__rental_case_item__product',
         ),
         pk=pk,
@@ -358,10 +361,53 @@ def case_detail(request, pk):
         'document_types': Document.DocumentType,
         'next_action': _case_next_action(rental_case),
         'document_actions': _document_actions(rental_case),
+        'donation_receipts': rental_case.donation_receipts.all(),
+        'can_issue_donation_receipt': request.user.has_perm('rental.can_issue_donation_receipt'),
     }
     return render(request, 'rental/case_detail.html', context)
 
 
+
+@login_required
+@permission_required(('rental.view_rentalcase', 'rental.can_issue_donation_receipt'), raise_exception=True)
+def create_donation_receipt(request, pk):
+    rental_case = get_object_or_404(RentalCase.objects.select_related('borrower'), pk=pk)
+    issuer_profile = DonationReceiptIssuerProfile.active_profile()
+    existing_issued = rental_case.donation_receipts.filter(status=DonationReceipt.Status.ISSUED).first()
+    if existing_issued:
+        messages.error(request, f'Für diesen Vorgang existiert bereits die ausgestellte Zuwendungsbestätigung {existing_issued.receipt_number}. Bitte erst stornieren, bevor eine neue Bescheinigung erstellt wird.')
+        return redirect('rental:case_detail', pk=rental_case.pk)
+    if request.method == 'POST':
+        form = DonationReceiptForm(request.POST, rental_case=rental_case, issuer_profile=issuer_profile)
+        if form.is_valid():
+            with transaction.atomic():
+                receipt = form.save(user=request.user)
+                document = create_donation_receipt_document(receipt, request=request)
+            messages.success(request, f'Zuwendungsbestätigung {receipt.receipt_number} wurde erstellt.')
+            return redirect('rental:document_download', pk=document.pk)
+    else:
+        form = DonationReceiptForm(rental_case=rental_case, issuer_profile=issuer_profile)
+    return render(request, 'rental/donation_receipt_form.html', {
+        'rental_case': rental_case,
+        'form': form,
+        'issuer_profile': issuer_profile,
+        'case_url': reverse('rental:case_detail', args=[rental_case.pk]),
+    })
+
+
+@login_required
+@permission_required(('rental.view_rentalcase', 'rental.can_issue_donation_receipt'), raise_exception=True)
+def cancel_donation_receipt(request, pk):
+    receipt = get_object_or_404(DonationReceipt.objects.select_related('rental_case'), pk=pk)
+    if request.method != 'POST':
+        return redirect('rental:case_detail', pk=receipt.rental_case_id)
+    receipt.status = DonationReceipt.Status.CANCELLED
+    receipt.cancelled_at = timezone.now()
+    receipt.cancelled_by = request.user
+    receipt.cancel_reason = request.POST.get('cancel_reason', '').strip()
+    receipt.save(update_fields=['status', 'cancelled_at', 'cancelled_by', 'cancel_reason', 'updated_at'])
+    messages.success(request, f'Zuwendungsbestätigung {receipt.receipt_number} wurde storniert.')
+    return redirect('rental:case_detail', pk=receipt.rental_case_id)
 
 def _document_block_reason(rental_case, document_type):
     if document_type == Document.DocumentType.RESERVATION:

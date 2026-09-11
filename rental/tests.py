@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -13,8 +13,8 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Borrower, Document, Product, ProductAccessory, ProductCategory, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
-from .pdf import create_or_replace_document
+from .models import Borrower, Document, DonationReceipt, DonationReceiptIssuerProfile, Product, ProductAccessory, ProductCategory, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
+from .pdf import amount_to_german_words, create_or_replace_document, create_donation_receipt_document
 from .permissions import (
     GROUP_ADMIN,
     GROUP_HELPERS,
@@ -1344,3 +1344,158 @@ class DocumentPdfTests(TestCase):
         self.assertEqual(document.sent_to, self.borrower.email)
         self.assertIsNotNone(document.sent_at)
         self.assertEqual(document.send_error, '')
+
+
+class DonationReceiptTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='admin', password='testpass123')
+        self.user.groups.add(Group.objects.get(name=GROUP_ADMIN))
+        self.borrower = Borrower.objects.create(
+            name='Max Muster',
+            organization='Muster GmbH',
+            email='max@example.org',
+            street='Musterstraße 1',
+            postal_code='12345',
+            city='Musterstadt',
+        )
+        now = timezone.now()
+        self.case = RentalCase.objects.create(
+            borrower=self.borrower,
+            reserved_from=now,
+            reserved_until=now + timezone.timedelta(hours=4),
+            status=RentalCase.Status.DONATION_RECEIVED,
+            expected_donation=Decimal('50.00'),
+            received_donation=Decimal('50.00'),
+            donation_decision=RentalCase.DonationDecision.RECEIVED,
+            donation_received_at=now,
+        )
+        self.profile = DonationReceiptIssuerProfile.objects.create(
+            name='Förderverein Feuerwehr Musterstadt e. V.',
+            street='Feuerwehrweg 1',
+            postal_code='54321',
+            city='Musterstadt',
+            tax_office='Finanzamt Musterstadt',
+            tax_number='123/456/78901',
+            exemption_notice_date=timezone.localdate(),
+            statutory_purposes='Förderung des Feuerschutzes',
+            default_issue_place='Musterstadt',
+            default_signer_name='Rita Helferin',
+            default_signer_function='Kassiererin',
+        )
+
+    def _form_payload(self):
+        return {
+            'donor_name': 'Max Muster',
+            'donor_organization': 'Muster GmbH',
+            'donor_street': 'Musterstraße 1',
+            'donor_postal_code': '12345',
+            'donor_city': 'Musterstadt',
+            'donor_email': 'max@example.org',
+            'donation_amount': '50.00',
+            'donation_date': timezone.localdate().isoformat(),
+            'issuer_name': self.profile.name,
+            'issuer_street': self.profile.street,
+            'issuer_postal_code': self.profile.postal_code,
+            'issuer_city': self.profile.city,
+            'tax_office': self.profile.tax_office,
+            'tax_number': self.profile.tax_number,
+            'exemption_notice_date': self.profile.exemption_notice_date.isoformat(),
+            'statutory_purposes': self.profile.statutory_purposes,
+            'issue_place': self.profile.default_issue_place,
+            'signer_name': self.profile.default_signer_name,
+            'signer_function': self.profile.default_signer_function,
+        }
+
+    def test_amount_to_german_words(self):
+        self.assertEqual(amount_to_german_words(Decimal('50.00')), 'fünfzig Euro')
+        self.assertEqual(amount_to_german_words(Decimal('25.50')), 'fünfundzwanzig Euro und fünfzig Cent')
+
+    def test_admin_group_has_donation_receipt_permission(self):
+        codes = set(Group.objects.get(name=GROUP_ADMIN).permissions.values_list('codename', flat=True))
+        self.assertIn('can_issue_donation_receipt', codes)
+        self.assertNotIn('can_issue_donation_receipt', set(Group.objects.get(name=GROUP_HELPERS).permissions.values_list('codename', flat=True)))
+
+    def test_permission_required_for_receipt_form(self):
+        helper = get_user_model().objects.create_user(username='helfer2', password='testpass123')
+        helper.groups.add(Group.objects.get(name=GROUP_HELPERS))
+        self.client.force_login(helper)
+        response = self.client.get(reverse('rental:donation_receipt_create', args=[self.case.pk]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_receipt_can_be_issued_from_case_and_pdf_contains_034122_data(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse('rental:donation_receipt_create', args=[self.case.pk]), self._form_payload())
+        self.assertEqual(response.status_code, 302)
+        receipt = DonationReceipt.objects.get(rental_case=self.case)
+        self.assertEqual(receipt.status, DonationReceipt.Status.ISSUED)
+        self.assertTrue(receipt.receipt_number.startswith(f'ZWB-{timezone.localdate().year}-'))
+        self.assertEqual(receipt.donor_name, 'Max Muster')
+        self.assertEqual(receipt.donation_amount_words, 'fünfzig Euro')
+        self.assertIsNotNone(receipt.document)
+        self.assertEqual(receipt.document.document_type, Document.DocumentType.DONATION_RECEIPT)
+        with receipt.document.file.open('rb') as pdf_file:
+            self.assertEqual(pdf_file.read(4), b'%PDF')
+
+    def test_duplicate_issued_receipt_is_blocked(self):
+        receipt = DonationReceipt.objects.create(
+            rental_case=self.case,
+            status=DonationReceipt.Status.ISSUED,
+            issued_at=timezone.now(),
+            issued_by=self.user,
+            donor_name='Max Muster',
+            donor_street='Musterstraße 1',
+            donor_postal_code='12345',
+            donor_city='Musterstadt',
+            donation_amount=Decimal('50.00'),
+            donation_amount_words='fünfzig Euro',
+            donation_date=timezone.localdate(),
+            issuer_name=self.profile.name,
+            issuer_street=self.profile.street,
+            issuer_postal_code=self.profile.postal_code,
+            issuer_city=self.profile.city,
+            tax_office=self.profile.tax_office,
+            tax_number=self.profile.tax_number,
+            exemption_notice_date=self.profile.exemption_notice_date,
+            statutory_purposes=self.profile.statutory_purposes,
+            issue_place='Musterstadt',
+            signer_name='Rita Helferin',
+            signer_function='Kassiererin',
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('rental:donation_receipt_create', args=[self.case.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(DonationReceipt.objects.filter(rental_case=self.case, status=DonationReceipt.Status.ISSUED).count(), 1)
+        self.assertEqual(DonationReceipt.objects.get(pk=receipt.pk).status, DonationReceipt.Status.ISSUED)
+
+    def test_receipt_can_be_cancelled(self):
+        receipt = DonationReceipt.objects.create(
+            rental_case=self.case,
+            status=DonationReceipt.Status.ISSUED,
+            issued_at=timezone.now(),
+            issued_by=self.user,
+            donor_name='Max Muster',
+            donor_street='Musterstraße 1',
+            donor_postal_code='12345',
+            donor_city='Musterstadt',
+            donation_amount=Decimal('50.00'),
+            donation_amount_words='fünfzig Euro',
+            donation_date=timezone.localdate(),
+            issuer_name=self.profile.name,
+            issuer_street=self.profile.street,
+            issuer_postal_code=self.profile.postal_code,
+            issuer_city=self.profile.city,
+            tax_office=self.profile.tax_office,
+            tax_number=self.profile.tax_number,
+            exemption_notice_date=self.profile.exemption_notice_date,
+            statutory_purposes=self.profile.statutory_purposes,
+            issue_place='Musterstadt',
+            signer_name='Rita Helferin',
+            signer_function='Kassiererin',
+        )
+        self.client.force_login(self.user)
+        response = self.client.post(reverse('rental:donation_receipt_cancel', args=[receipt.pk]), {'cancel_reason': 'Tippfehler'})
+        self.assertEqual(response.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, DonationReceipt.Status.CANCELLED)
+        self.assertEqual(receipt.cancel_reason, 'Tippfehler')
+        self.assertEqual(receipt.cancelled_by, self.user)

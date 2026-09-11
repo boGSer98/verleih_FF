@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Max, Sum
 from django.utils import timezone
 
 
@@ -337,6 +337,7 @@ class Document(TimeStampedModel):
         HANDOVER = 'handover', 'Übergabeprotokoll'
         RETURN = 'return', 'Rücknahmeprotokoll'
         CLOSING = 'closing', 'Abschlussübersicht'
+        DONATION_RECEIPT = 'donation_receipt', 'Zuwendungsbestätigung'
 
     rental_case = models.ForeignKey(RentalCase, verbose_name='Vorgang', on_delete=models.CASCADE, related_name='documents')
     document_type = models.CharField('Dokumenttyp', max_length=32, choices=DocumentType.choices)
@@ -352,3 +353,110 @@ class Document(TimeStampedModel):
 
     def __str__(self):
         return f'{self.get_document_type_display()} {self.rental_case}'
+
+
+class DonationReceiptIssuerProfile(TimeStampedModel):
+    name = models.CharField('Vereinsname / Aussteller', max_length=220)
+    street = models.CharField('Straße/Hausnummer', max_length=180)
+    postal_code = models.CharField('PLZ', max_length=20)
+    city = models.CharField('Ort', max_length=120)
+    tax_office = models.CharField('Finanzamt', max_length=180)
+    tax_number = models.CharField('Steuernummer', max_length=80)
+    exemption_notice_date = models.DateField('Datum Freistellungs-/Körperschaftsteuerbescheid', null=True, blank=True)
+    determination_notice_date = models.DateField('Datum Feststellungsbescheid § 60a AO', null=True, blank=True)
+    statutory_purposes = models.TextField('Begünstigte Zwecke')
+    default_issue_place = models.CharField('Standard-Ausstellungsort', max_length=120, blank=True)
+    default_signer_name = models.CharField('Standard-Unterzeichner', max_length=180, blank=True)
+    default_signer_function = models.CharField('Funktion des Unterzeichners', max_length=180, blank=True)
+    membership_fees_deductible = models.BooleanField('Mitgliedsbeiträge steuerlich abziehbar', default=False)
+    active = models.BooleanField('Aktiv', default=True)
+
+    class Meta:
+        verbose_name = 'Vereinsdaten Zuwendungsbestätigung'
+        verbose_name_plural = 'Vereinsdaten Zuwendungsbestätigungen'
+        ordering = ['-active', 'name']
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def active_profile(cls):
+        return cls.objects.filter(active=True).order_by('-updated_at', '-created_at').first()
+
+
+class DonationReceipt(TimeStampedModel):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Entwurf'
+        ISSUED = 'issued', 'Ausgestellt'
+        CANCELLED = 'cancelled', 'Storniert'
+
+    rental_case = models.ForeignKey(RentalCase, verbose_name='Vorgang', on_delete=models.PROTECT, related_name='donation_receipts')
+    document = models.OneToOneField(Document, verbose_name='Dokument', on_delete=models.SET_NULL, null=True, blank=True, related_name='donation_receipt')
+    receipt_number = models.CharField('Bescheinigungsnummer', max_length=40, unique=True, blank=True)
+    status = models.CharField('Status', max_length=16, choices=Status.choices, default=Status.DRAFT)
+    issued_at = models.DateTimeField('Ausgestellt am', null=True, blank=True)
+    issued_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name='Ausgestellt von', on_delete=models.PROTECT, null=True, blank=True, related_name='issued_donation_receipts')
+    cancelled_at = models.DateTimeField('Storniert am', null=True, blank=True)
+    cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name='Storniert von', on_delete=models.PROTECT, null=True, blank=True, related_name='cancelled_donation_receipts')
+    cancel_reason = models.TextField('Stornogrund', blank=True)
+
+    donor_name = models.CharField('Name des Zuwendenden', max_length=180)
+    donor_organization = models.CharField('Organisation', max_length=180, blank=True)
+    donor_street = models.CharField('Straße/Hausnummer', max_length=180)
+    donor_postal_code = models.CharField('PLZ', max_length=20)
+    donor_city = models.CharField('Ort', max_length=120)
+    donor_email = models.EmailField('E-Mail', blank=True)
+
+    donation_amount = models.DecimalField('Betrag der Zuwendung', max_digits=8, decimal_places=2)
+    donation_amount_words = models.CharField('Betrag in Buchstaben', max_length=240, blank=True)
+    donation_date = models.DateField('Tag der Zuwendung')
+    is_membership_fee = models.BooleanField('Mitgliedsbeitrag', default=False)
+    is_expense_reimbursement_waiver = models.BooleanField('Verzicht auf Erstattung von Aufwendungen', default=False)
+
+    issuer_name = models.CharField('Aussteller/Verein', max_length=220)
+    issuer_street = models.CharField('Straße/Hausnummer Verein', max_length=180)
+    issuer_postal_code = models.CharField('PLZ Verein', max_length=20)
+    issuer_city = models.CharField('Ort Verein', max_length=120)
+    tax_office = models.CharField('Finanzamt', max_length=180)
+    tax_number = models.CharField('Steuernummer', max_length=80)
+    exemption_notice_date = models.DateField('Datum Freistellungs-/Körperschaftsteuerbescheid', null=True, blank=True)
+    determination_notice_date = models.DateField('Datum Feststellungsbescheid § 60a AO', null=True, blank=True)
+    statutory_purposes = models.TextField('Begünstigte Zwecke')
+    membership_fees_deductible = models.BooleanField('Mitgliedsbeiträge steuerlich abziehbar', default=False)
+
+    issue_place = models.CharField('Ausstellungsort', max_length=120)
+    signer_name = models.CharField('Unterzeichner', max_length=180)
+    signer_function = models.CharField('Funktion', max_length=180)
+
+    class Meta:
+        verbose_name = 'Zuwendungsbestätigung'
+        verbose_name_plural = 'Zuwendungsbestätigungen'
+        ordering = ['-issued_at', '-created_at']
+        permissions = [
+            ('can_issue_donation_receipt', 'Darf Zuwendungsbestätigungen ausstellen'),
+        ]
+
+    def __str__(self):
+        return self.receipt_number or f'Zuwendungsbestätigung {self.rental_case}'
+
+    def save(self, *args, **kwargs):
+        if not self.receipt_number:
+            year = timezone.localdate().year
+            prefix = f'ZWB-{year}-'
+            latest = DonationReceipt.objects.filter(receipt_number__startswith=prefix).aggregate(max_number=Max('receipt_number'))['max_number']
+            next_number = 1
+            if latest:
+                try:
+                    next_number = int(latest.rsplit('-', 1)[1]) + 1
+                except (ValueError, IndexError):
+                    next_number = 1
+            self.receipt_number = f'{prefix}{next_number:04d}'
+        super().save(*args, **kwargs)
+
+    @property
+    def donor_address_lines(self):
+        lines = [self.donor_name]
+        if self.donor_organization:
+            lines.append(self.donor_organization)
+        lines.extend([self.donor_street, f'{self.donor_postal_code} {self.donor_city}'.strip()])
+        return [line for line in lines if line]
