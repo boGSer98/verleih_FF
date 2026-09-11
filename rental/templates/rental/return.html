@@ -40,6 +40,9 @@
     .messages li { padding:.75rem; border-radius:12px; background:#fff3cd; margin-bottom:.5rem; }
     .muted { color:var(--muted); }
     .hint { border-left:4px solid var(--warn); padding:.55rem .75rem; background:#fff8ec; border-radius:10px; }
+    .photo-note-list { display:grid; gap:.55rem; margin-top:.55rem; }
+    .photo-note { border:1px solid #d8e1ec; border-radius:12px; padding:.65rem; background:#f9fbfe; }
+    .photo-note label { margin-top:0; }
     @media (max-width:640px) { main { padding:.75rem; } .card { border-radius:16px; padding:.9rem; } .button-row, .choice-grid { grid-template-columns:1fr; } canvas { height:210px; } }
   </style>
 </head>
@@ -113,11 +116,14 @@
               <label for="return_note_{{ item.pk }}">Bemerkung zur Rücknahme</label>
               <textarea id="return_note_{{ item.pk }}" name="return_note_{{ item.pk }}" placeholder="Was fehlt? Was ist beschädigt? Reinigungsbedarf?"></textarea>
 
-              <label for="return_photos_{{ item.pk }}">Fotos zu diesem Artikel / Problem optional</label>
-              <input id="return_photos_{{ item.pk }}" name="return_photos_{{ item.pk }}" type="file" accept="image/*" capture="environment" multiple>
-              <p class="muted">Du kannst mehrere Fotos je Artikel aufnehmen, z. B. Übersicht, Detailaufnahme und Zubehör/Fehlteil.</p>
-              <label for="photo_caption_{{ item.pk }}">Beschreibung zu den Fotos dieses Artikels</label>
-              <input id="photo_caption_{{ item.pk }}" name="photo_caption_{{ item.pk }}" type="text" placeholder="z. B. Delle links, starke Verschmutzung">
+              <label for="return_photos_{{ item.pk }}">Fotos aus Galerie oder Kamera zu diesem Artikel / Problem optional</label>
+              <input id="return_photos_{{ item.pk }}" name="return_photos_{{ item.pk }}" type="file" accept="image/*" multiple data-photo-input data-item-id="{{ item.pk }}">
+              <p class="muted">Du kannst am Smartphone mehrere vorhandene Bilder aus der Galerie auswählen oder – je nach Gerät – direkt die Kamera öffnen.</p>
+              <div class="photo-note-list" data-photo-notes-for="{{ item.pk }}" aria-live="polite"></div>
+              <noscript>
+                <label for="photo_caption_{{ item.pk }}">Beschreibung zu allen Fotos dieses Artikels</label>
+                <input id="photo_caption_{{ item.pk }}" name="photo_caption_{{ item.pk }}" type="text" placeholder="z. B. Delle links, starke Verschmutzung">
+              </noscript>
             </article>
           {% empty %}
             <p class="muted">Noch keine Artikelpositionen erfasst.</p>
@@ -196,7 +202,31 @@
       canvas.addEventListener('pointercancel', () => { drawing = false; });
       document.querySelector(`[data-clear="${canvas.dataset.signature}"]`).addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); input.value = ''; hasInk = false; });
     }
+    function setupPhotoNotes(input) {
+      const itemId = input.dataset.itemId;
+      const target = document.querySelector(`[data-photo-notes-for="${itemId}"]`);
+      if (!target) return;
+      input.addEventListener('change', () => {
+        target.innerHTML = '';
+        Array.from(input.files || []).forEach((file, index) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'photo-note';
+          const label = document.createElement('label');
+          label.setAttribute('for', `photo_note_${itemId}_${index}`);
+          label.textContent = `Notiz zu Bild ${index + 1}: ${file.name}`;
+          const note = document.createElement('input');
+          note.type = 'text';
+          note.id = `photo_note_${itemId}_${index}`;
+          note.name = `photo_note_${itemId}_${index}`;
+          note.maxLength = 240;
+          note.placeholder = 'z. B. Delle links, Kratzer am Fuß, Verschmutzung';
+          wrapper.append(label, note);
+          target.appendChild(wrapper);
+        });
+      });
+    }
     document.querySelectorAll('canvas[data-signature]').forEach(setupSignature);
+    document.querySelectorAll('[data-photo-input]').forEach(setupPhotoNotes);
   </script>
 </body>
 </html>

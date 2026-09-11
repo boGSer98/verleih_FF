@@ -936,12 +936,14 @@ class ReturnViewTests(TestCase):
         self.assertIn('Bei Übergabe mitgegeben', content)
         self.assertIn('Optional', content)
         self.assertIn(f'name="return_photos_{self.item.pk}"', content)
-        self.assertIn(f'name="photo_caption_{self.item.pk}"', content)
-        self.assertIn('Fotos zu diesem Artikel / Problem optional', content)
+        self.assertIn(f'data-photo-notes-for="{self.item.pk}"', content)
+        self.assertIn('Fotos aus Galerie oder Kamera zu diesem Artikel / Problem optional', content)
         self.assertIn('type="file"', content)
         self.assertIn('accept="image/*"', content)
-        self.assertIn('capture="environment"', content)
+        self.assertIn('data-photo-input', content)
         self.assertIn('multiple', content)
+        self.assertNotIn('capture="environment"', content)
+        self.assertIn('photo_note_', content)
 
     def test_return_post_without_issues_sets_returned_and_creates_protocol(self):
         self.client.force_login(self.user)
@@ -969,7 +971,10 @@ class ReturnViewTests(TestCase):
             SimpleUploadedFile('schaden-1.jpg', b'fake-image-bytes-1', content_type='image/jpeg'),
             SimpleUploadedFile('schaden-2.jpg', b'fake-image-bytes-2', content_type='image/jpeg'),
         ]
-        data = self._valid_post_data(**{f'photo_caption_{self.item.pk}': 'Delle an Tischplatte'})
+        data = self._valid_post_data(**{
+            f'photo_note_{self.item.pk}_0': 'Delle an Tischplatte',
+            f'photo_note_{self.item.pk}_1': 'Kratzer am Metallfuß',
+        })
         data[f'return_photos_{self.item.pk}'] = uploads
 
         response = self.client.post(reverse('rental:return', args=[self.case.pk]), data)
@@ -978,9 +983,10 @@ class ReturnViewTests(TestCase):
         protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.RETURN)
         self.assertEqual(protocol.photos.count(), 2)
         self.assertEqual(self.item.return_photos.count(), 2)
+        captions = list(protocol.photos.order_by('created_at').values_list('caption', flat=True))
+        self.assertEqual(captions, ['Delle an Tischplatte', 'Kratzer am Metallfuß'])
         for photo in protocol.photos.all():
             self.assertEqual(photo.rental_case_item, self.item)
-            self.assertEqual(photo.caption, 'Delle an Tischplatte')
             self.assertTrue(photo.image.name.startswith('protocol-photos/'))
 
     def test_return_post_with_damage_sets_clarification(self):
