@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .emailing import send_document_email
-from .forms import DonationReceiptForm
+from .forms import BorrowerForm, DonationReceiptForm
 from .models import Borrower, Document, DonationReceipt, DonationReceiptIssuerProfile, Product, Protocol, ProtocolPhoto, RentalCase, RentalCaseItem
 from .pdf import create_donation_receipt_document, create_or_replace_document, document_filename
 
@@ -143,8 +143,58 @@ def dashboard(request):
         'admin_case_add_url': reverse('admin:rental_rentalcase_add'),
         'admin_case_list_url': reverse('admin:rental_rentalcase_changelist'),
         'admin_product_list_url': reverse('admin:rental_product_changelist'),
+        'borrower_list_url': reverse('rental:borrower_list'),
     }
     return render(request, 'rental/dashboard.html', context)
+
+
+@login_required
+@permission_required('rental.view_borrower', raise_exception=True)
+def borrower_list(request):
+    search_query = request.GET.get('q', '').strip()
+    borrowers = Borrower.objects.all().order_by('name', 'organization')
+    if search_query:
+        borrowers = borrowers.filter(
+            Q(name__icontains=search_query)
+            | Q(organization__icontains=search_query)
+            | Q(email__icontains=search_query)
+            | Q(phone__icontains=search_query)
+            | Q(city__icontains=search_query)
+        )
+    borrowers = borrowers.annotate(case_count=Count('rental_cases'))
+    return render(request, 'rental/borrower_list.html', {
+        'borrowers': borrowers[:100],
+        'search_query': search_query,
+        'dashboard_url': reverse('rental:dashboard'),
+        'case_create_url': reverse('rental:case_create'),
+        'can_change_borrower': request.user.has_perm('rental.change_borrower'),
+        'can_add_rentalcase': request.user.has_perm('rental.add_rentalcase'),
+    })
+
+
+@login_required
+@permission_required(('rental.view_borrower', 'rental.change_borrower'), raise_exception=True)
+def borrower_update(request, pk):
+    borrower = get_object_or_404(Borrower, pk=pk)
+    if request.method == 'POST':
+        form = BorrowerForm(request.POST, instance=borrower)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Entleiher „{borrower.name}“ wurde aktualisiert.')
+            if 'save_and_new_case' in request.POST:
+                return redirect(f"{reverse('rental:case_create')}?borrower={borrower.pk}")
+            return redirect('rental:borrower_list')
+    else:
+        form = BorrowerForm(instance=borrower)
+    recent_cases = borrower.rental_cases.order_by('-reserved_from', '-created_at')[:10]
+    return render(request, 'rental/borrower_form.html', {
+        'borrower': borrower,
+        'form': form,
+        'recent_cases': recent_cases,
+        'borrower_list_url': reverse('rental:borrower_list'),
+        'case_create_from_borrower_url': f"{reverse('rental:case_create')}?borrower={borrower.pk}",
+        'can_add_rentalcase': request.user.has_perm('rental.add_rentalcase'),
+    })
 
 
 def _parse_local_datetime(date_value, time_value, label):
@@ -232,6 +282,10 @@ def case_create(request):
     borrowers = Borrower.objects.order_by('name')
     values = {}
     errors = []
+
+    if request.method == 'GET' and request.GET.get('borrower'):
+        selected_borrower = get_object_or_404(Borrower, pk=request.GET.get('borrower'))
+        values = {'borrower': str(selected_borrower.pk), **_borrower_values(selected_borrower)}
 
     if request.method == 'POST':
         values = request.POST.copy()

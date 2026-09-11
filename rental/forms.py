@@ -4,8 +4,17 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import DonationReceipt, DonationReceiptIssuerProfile, RentalCase
+from .models import Borrower, DonationReceipt, DonationReceiptIssuerProfile, RentalCase
 from .pdf import amount_to_german_words
+
+
+class BorrowerForm(forms.ModelForm):
+    class Meta:
+        model = Borrower
+        fields = ['name', 'organization', 'email', 'phone', 'street', 'postal_code', 'city', 'notes']
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 4}),
+        }
 
 
 class DonationReceiptIssuerProfileForm(forms.ModelForm):

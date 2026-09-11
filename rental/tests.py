@@ -1499,3 +1499,83 @@ class DonationReceiptTests(TestCase):
         self.assertEqual(receipt.status, DonationReceipt.Status.CANCELLED)
         self.assertEqual(receipt.cancel_reason, 'Tippfehler')
         self.assertEqual(receipt.cancelled_by, self.user)
+
+
+class BorrowerWebManagementTests(TestCase):
+    def setUp(self):
+        self.manager = get_user_model().objects.create_user(username='verwaltung2', password='testpass123')
+        self.manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
+        self.helper = get_user_model().objects.create_user(username='helfer-borrower', password='testpass123')
+        self.helper.groups.add(Group.objects.get(name=GROUP_HELPERS))
+        self.category = ProductCategory.objects.create(name='Anhänger')
+        self.product = Product.objects.create(name='Mehrzweckanhänger', category=self.category, stock_quantity=2)
+        self.borrower = Borrower.objects.create(
+            name='Max Muster',
+            organization='Feuerwehr Musterstadt',
+            email='max@example.org',
+            phone='01234',
+            street='Alte Straße 1',
+            postal_code='12345',
+            city='Musterstadt',
+        )
+
+    def test_dashboard_links_to_borrower_management(self):
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('rental:dashboard'))
+        self.assertContains(response, reverse('rental:borrower_list'))
+        self.assertContains(response, 'Entleiher verwalten')
+
+    def test_borrower_list_shows_borrowers_and_start_case_link(self):
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('rental:borrower_list'), {'q': 'Feuerwehr'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Max Muster')
+        self.assertContains(response, 'Feuerwehr Musterstadt')
+        self.assertContains(response, f"{reverse('rental:case_create')}?borrower={self.borrower.pk}")
+        self.assertContains(response, reverse('rental:borrower_update', args=[self.borrower.pk]))
+
+    def test_helper_without_change_permission_cannot_edit_borrower(self):
+        self.client.force_login(self.helper)
+        response = self.client.get(reverse('rental:borrower_update', args=[self.borrower.pk]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_borrower_update_changes_master_data(self):
+        self.client.force_login(self.manager)
+        response = self.client.post(reverse('rental:borrower_update', args=[self.borrower.pk]), {
+            'name': 'Max Muster',
+            'organization': 'Feuerwehr Musterstadt',
+            'email': 'neu@example.org',
+            'phone': '09876',
+            'street': 'Neue Straße 2',
+            'postal_code': '54321',
+            'city': 'Neustadt',
+            'notes': 'Darf Anhänger abholen',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.borrower.refresh_from_db()
+        self.assertEqual(self.borrower.email, 'neu@example.org')
+        self.assertEqual(self.borrower.street, 'Neue Straße 2')
+        self.assertEqual(self.borrower.notes, 'Darf Anhänger abholen')
+
+    def test_case_create_prefills_selected_borrower(self):
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('rental:case_create'), {'borrower': self.borrower.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'<option value="{self.borrower.pk}" selected>Max Muster · Feuerwehr Musterstadt</option>', html=True)
+        self.assertContains(response, 'Alte Straße 1')
+        self.assertContains(response, 'max@example.org')
+
+    def test_save_and_start_case_redirects_to_prefilled_case_create(self):
+        self.client.force_login(self.manager)
+        response = self.client.post(reverse('rental:borrower_update', args=[self.borrower.pk]), {
+            'name': 'Max Muster',
+            'organization': 'Feuerwehr Musterstadt',
+            'email': 'max@example.org',
+            'phone': '01234',
+            'street': 'Alte Straße 1',
+            'postal_code': '12345',
+            'city': 'Musterstadt',
+            'notes': '',
+            'save_and_new_case': '1',
+        })
+        self.assertRedirects(response, f"{reverse('rental:case_create')}?borrower={self.borrower.pk}", fetch_redirect_response=False)

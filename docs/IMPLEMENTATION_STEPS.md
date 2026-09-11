@@ -83,7 +83,7 @@ Abnahmekriterien:
 
 ## Phase 3 – Prozess-Dashboard
 
-Status: erste mobile-optimierte Tagesübersicht mit Suche, Kalenderlink und Web-Vorgangsanlage umgesetzt.
+Status: mobile-optimierte Tagesübersicht mit Suche, Kalenderlink, Entleiherverwaltung und Web-Vorgangsanlage umgesetzt.
 
 Ziel: Helfer sehen sofort, was heute zu tun ist.
 
@@ -102,6 +102,7 @@ Aufgaben:
 6. Web-Vorgangsanlage für Verwaltung außerhalb des Django-Admins. Status: umgesetzt mit Entleiherauswahl/-neuanlage, sichtbarer Prüfung und Aktualisierung bestehender Entleiherdaten, Datums-/HH:MM-Zeitfeldern, geführter schrittweiser Anzeige erst nach „Weiter“, dynamisch nachwachsenden Artikelpositionen ab genau einer Startzeile, zeitraumbasierter Artikelverfügbarkeitsprüfung, schrittweisem Zwischenspeichern im Browser und Weiterleitung auf die neue Vorgangsdetailseite nach dem Speichern.
 7. Kalenderübersicht für aktuelle Vorgänge. Status: umgesetzt als mobile Monatskalenderansicht mit aktiven Vorgängen, Monatsnavigation und Vorgangschips in den Tageszellen.
 8. Vorgangsdetail außerhalb des Django-Admins. Status: umgesetzt mit mobilen Aktionsbuttons, Artikeln, Dokumenten-/Mailaktionen, Protokollnotizen und Rücknahmefotos.
+9. Entleiherverwaltung außerhalb des Django-Admins. Status: umgesetzt mit Dashboard-Button, Suchliste, Stammdatenbearbeitung und Start eines neuen Vorgangs aus einem Entleiher.
 
 Abnahmekriterien:
 
