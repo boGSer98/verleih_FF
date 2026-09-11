@@ -586,6 +586,35 @@ def _signature_printed_name(post_data, field_name, label):
     return name
 
 
+def _apply_handover_cash_donation_from_post(request, rental_case):
+    decision = request.POST.get('handover_donation_decision', '').strip()
+    if decision not in {RentalCase.DonationDecision.RECEIVED, RentalCase.DonationDecision.WAIVED}:
+        raise ValueError('Bitte dokumentiere bei der Abholung, ob eine Barspende erhalten wurde oder keine Spende erfolgt.')
+
+    note = request.POST.get('handover_donation_note', '').strip()
+    if decision == RentalCase.DonationDecision.WAIVED:
+        rental_case.received_donation = Decimal('0')
+        rental_case.donation_decision = RentalCase.DonationDecision.WAIVED
+        rental_case.donation_payment_method = ''
+        rental_case.donation_received_at = None
+        rental_case.donation_note = note
+        return
+
+    amount_raw = request.POST.get('handover_donation_amount', '').strip().replace(',', '.')
+    try:
+        amount = Decimal(amount_raw or str(rental_case.expected_donation or '0'))
+    except InvalidOperation as exc:
+        raise ValueError('Der Betrag der Barspende ist ungültig.') from exc
+    if amount <= 0:
+        raise ValueError('Bei „Barspende erhalten“ muss ein Betrag größer 0 erfasst werden.')
+
+    rental_case.received_donation = amount
+    rental_case.donation_decision = RentalCase.DonationDecision.RECEIVED
+    rental_case.donation_payment_method = RentalCase.DonationPaymentMethod.CASH
+    rental_case.donation_received_at = timezone.now()
+    rental_case.donation_note = note
+
+
 @login_required
 @permission_required(('rental.view_rentalcase', 'rental.change_rentalcase', 'rental.change_rentalcaseitem', 'rental.add_protocol'), raise_exception=True)
 def handover(request, pk):
@@ -607,6 +636,7 @@ def handover(request, pk):
         borrower_signature_name = ''
         club_signature_name = ''
         try:
+            _apply_handover_cash_donation_from_post(request, rental_case)
             borrower_signature_name = _signature_printed_name(request.POST, 'borrower_signature_name', 'Name Entleiher-Unterschrift')
             club_signature_name = _signature_printed_name(request.POST, 'club_signature_name', 'Name Verein-/Helfer-Unterschrift')
             borrower_signature = _decode_signature(request.POST.get('borrower_signature_data', ''), 'Unterschrift Entleiher')
@@ -661,9 +691,19 @@ def handover(request, pk):
 
                 if rental_case.status == RentalCase.Status.RESERVED:
                     rental_case.transition_to(RentalCase.Status.PREPARED)
-                rental_case.transition_to(RentalCase.Status.HANDED_OVER)
+                rental_case.transition_to(RentalCase.Status.HANDED_OVER, save=False)
+                rental_case.save(update_fields=[
+                    'status',
+                    'received_donation',
+                    'donation_decision',
+                    'donation_payment_method',
+                    'donation_note',
+                    'donation_received_at',
+                    'closed_at',
+                    'updated_at',
+                ])
 
-            messages.success(request, 'Übergabeprotokoll gespeichert und Vorgang auf „Übergeben“ gesetzt.')
+            messages.success(request, 'Übergabeprotokoll gespeichert, Spendenentscheidung dokumentiert und Vorgang auf „Übergeben“ gesetzt.')
             return redirect('rental:case_detail', pk=rental_case.pk)
         messages.error(request, error)
 
@@ -829,12 +869,10 @@ def return_case(request, pk):
 
 def _apply_donation_decision_from_post(request, rental_case):
     decision = request.POST.get('decision') or RentalCase.DonationDecision.RECEIVED
-    if decision not in RentalCase.DonationDecision.values or decision == RentalCase.DonationDecision.OPEN:
-        raise ValueError('Die Spendenentscheidung ist ungültig.')
+    if decision not in {RentalCase.DonationDecision.RECEIVED, RentalCase.DonationDecision.WAIVED}:
+        raise ValueError('Die Spendenentscheidung ist ungültig. Erlaubt sind nur „Bar erhalten“ oder „Keine Spende“.')
 
-    payment_method = request.POST.get('payment_method', '').strip()
-    if payment_method and payment_method not in RentalCase.DonationPaymentMethod.values:
-        raise ValueError('Die Zahlungsart ist ungültig.')
+    payment_method = RentalCase.DonationPaymentMethod.CASH if decision == RentalCase.DonationDecision.RECEIVED else ''
 
     amount_raw = request.POST.get('amount', '').strip().replace(',', '.')
     try:
@@ -845,15 +883,14 @@ def _apply_donation_decision_from_post(request, rental_case):
     if decision == RentalCase.DonationDecision.WAIVED:
         amount = Decimal('0')
         payment_method = ''
-
-    if amount < 0:
-        raise ValueError('Der Spendenbetrag darf nicht negativ sein.')
+    elif amount <= 0:
+        raise ValueError('Bei „Bar erhalten“ muss ein Betrag größer 0 erfasst werden.')
 
     rental_case.received_donation = amount
     rental_case.donation_decision = decision
     rental_case.donation_payment_method = payment_method
     rental_case.donation_note = request.POST.get('donation_note', '').strip()
-    rental_case.donation_received_at = timezone.now()
+    rental_case.donation_received_at = timezone.now() if decision == RentalCase.DonationDecision.RECEIVED else None
     return amount, RentalCase.DonationDecision(decision).label
 
 

@@ -23,6 +23,7 @@
     .accessory-type { display:inline-block; margin-left:.3rem; color:#5d6b7c; font-size:.9rem; font-weight:800; }
     label { display:block; font-weight:700; margin:.6rem 0 .3rem; }
     input, textarea { width:100%; min-height:48px; border:1px solid #bcc8d6; border-radius:12px; padding:.75rem; font:inherit; }
+    input[type="radio"] { width:auto; min-height:0; margin-right:.45rem; }
     textarea { min-height:90px; resize:vertical; }
     canvas { width:100%; height:180px; border:2px dashed #9dafc4; border-radius:14px; background:#fff; touch-action:none; display:block; }
     .button-row { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
@@ -78,6 +79,18 @@
             <p class="muted">Noch keine Artikelpositionen erfasst.</p>
           {% endfor %}
         </div>
+      </section>
+
+      <section class="card">
+        <h2>Spende bei Abholung</h2>
+        <p class="muted">Die Spende wird bei der Abholung bar durch den Entleiher getätigt oder ausdrücklich nicht getätigt.</p>
+        <label>Spendenentscheidung</label>
+        <label><input type="radio" name="handover_donation_decision" value="received" required> Barspende erhalten</label>
+        <label><input type="radio" name="handover_donation_decision" value="waived" required> Keine Spende erhalten</label>
+        <label for="handover_donation_amount">Betrag der Barspende</label>
+        <input id="handover_donation_amount" name="handover_donation_amount" inputmode="decimal" value="{{ rental_case.expected_donation }}" placeholder="0,00">
+        <label for="handover_donation_note">Spendennotiz optional</label>
+        <textarea id="handover_donation_note" name="handover_donation_note" placeholder="z. B. bar passend erhalten oder Entleiher spendet nicht"></textarea>
       </section>
 
       <section class="card">

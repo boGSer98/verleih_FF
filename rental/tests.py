@@ -599,26 +599,26 @@ class DashboardViewTests(TestCase):
         self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
         self.assertEqual(donation.received_donation, Decimal('25.00'))
         self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.RECEIVED)
-        self.assertEqual(donation.donation_payment_method, '')
+        self.assertEqual(donation.donation_payment_method, RentalCase.DonationPaymentMethod.CASH)
         self.assertIsNotNone(donation.donation_received_at)
 
-    def test_donation_received_action_accepts_manual_amount(self):
+    def test_donation_received_action_accepts_manual_cash_amount(self):
         donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
         self.client.force_login(self.user)
 
         self.client.post(reverse('rental:donation_received', args=[donation.pk]), {
             'amount': '30,50',
-            'decision': RentalCase.DonationDecision.PARTIAL,
+            'decision': RentalCase.DonationDecision.RECEIVED,
             'payment_method': RentalCase.DonationPaymentMethod.BANK_TRANSFER,
-            'donation_note': 'Teilbetrag vorab überwiesen.',
+            'donation_note': 'Bar bei Abholung nachdokumentiert.',
         })
 
         donation.refresh_from_db()
         self.assertEqual(donation.status, RentalCase.Status.DONATION_RECEIVED)
         self.assertEqual(donation.received_donation, Decimal('30.50'))
-        self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.PARTIAL)
-        self.assertEqual(donation.donation_payment_method, RentalCase.DonationPaymentMethod.BANK_TRANSFER)
-        self.assertEqual(donation.donation_note, 'Teilbetrag vorab überwiesen.')
+        self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.RECEIVED)
+        self.assertEqual(donation.donation_payment_method, RentalCase.DonationPaymentMethod.CASH)
+        self.assertEqual(donation.donation_note, 'Bar bei Abholung nachdokumentiert.')
 
     def test_donation_received_action_documents_waiver_without_amount_or_payment_method(self):
         donation = self._create_case(status=RentalCase.Status.DONATION_OPEN)
@@ -636,6 +636,7 @@ class DashboardViewTests(TestCase):
         self.assertEqual(donation.received_donation, Decimal('0.00'))
         self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.WAIVED)
         self.assertEqual(donation.donation_payment_method, '')
+        self.assertIsNone(donation.donation_received_at)
         self.assertEqual(donation.donation_note, 'Vorstand verzichtet auf Spende.')
 
     def test_donation_received_action_rejects_invalid_decision_and_payment_method(self):
@@ -651,8 +652,8 @@ class DashboardViewTests(TestCase):
         self.assertEqual(donation.donation_decision, RentalCase.DonationDecision.OPEN)
 
         self.client.post(reverse('rental:donation_received', args=[donation.pk]), {
-            'decision': RentalCase.DonationDecision.RECEIVED,
-            'payment_method': 'crypto',
+            'decision': RentalCase.DonationDecision.PARTIAL,
+            'amount': '10,00',
         })
         donation.refresh_from_db()
         self.assertEqual(donation.status, RentalCase.Status.DONATION_OPEN)
@@ -778,6 +779,11 @@ class HandoverViewTests(TestCase):
         self.assertIn('Pflicht', content)
         self.assertIn('LED-Lichterkette', content)
         self.assertIn('Optional', content)
+        self.assertIn('Spende bei Abholung', content)
+        self.assertIn('name="handover_donation_decision" value="received"', content)
+        self.assertIn('Barspende erhalten', content)
+        self.assertIn('Keine Spende erhalten', content)
+        self.assertIn('name="handover_donation_amount"', content)
 
     def test_handover_post_creates_protocol_signatures_and_updates_status(self):
         self.client.force_login(self.user)
@@ -787,6 +793,9 @@ class HandoverViewTests(TestCase):
             f'note_{self.item.pk}': 'direkt vor Ort geprüft',
             f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk), str(self.optional_accessory.pk)],
             'notes': 'Übergabe am Vereinsheim',
+            'handover_donation_decision': RentalCase.DonationDecision.RECEIVED,
+            'handover_donation_amount': '30,00',
+            'handover_donation_note': 'Bar passend bei Abholung erhalten.',
             'borrower_signature_name': 'Erika Beispiel',
             'club_signature_name': 'Max Helfer',
             'borrower_signature_data': self.signature_data,
@@ -798,6 +807,11 @@ class HandoverViewTests(TestCase):
         self.item.refresh_from_db()
         protocol = self.case.protocols.get(protocol_type=Protocol.ProtocolType.HANDOVER)
         self.assertEqual(self.case.status, RentalCase.Status.HANDED_OVER)
+        self.assertEqual(self.case.donation_decision, RentalCase.DonationDecision.RECEIVED)
+        self.assertEqual(self.case.received_donation, Decimal('30.00'))
+        self.assertEqual(self.case.donation_payment_method, RentalCase.DonationPaymentMethod.CASH)
+        self.assertIsNotNone(self.case.donation_received_at)
+        self.assertEqual(self.case.donation_note, 'Bar passend bei Abholung erhalten.')
         self.assertEqual(self.item.handover_condition, 'vollständig und sauber')
         self.assertEqual(self.item.notes, 'direkt vor Ort geprüft')
         self.assertCountEqual(
@@ -816,6 +830,8 @@ class HandoverViewTests(TestCase):
         response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
             f'condition_{self.item.pk}': 'vollständig und sauber',
             f'handover_accessories_{self.item.pk}': [str(self.optional_accessory.pk)],
+            'handover_donation_decision': RentalCase.DonationDecision.RECEIVED,
+            'handover_donation_amount': '25,00',
             'borrower_signature_name': 'Erika Beispiel',
             'club_signature_name': 'Max Helfer',
             'borrower_signature_data': self.signature_data,
@@ -834,6 +850,8 @@ class HandoverViewTests(TestCase):
 
         response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
             f'condition_{self.item.pk}': 'vollständig',
+            'handover_donation_decision': RentalCase.DonationDecision.RECEIVED,
+            'handover_donation_amount': '25,00',
             'borrower_signature_name': 'Erika Beispiel',
             'club_signature_name': 'Max Helfer',
             'borrower_signature_data': '',
@@ -851,6 +869,8 @@ class HandoverViewTests(TestCase):
         response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
             f'condition_{self.item.pk}': 'vollständig',
             f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk)],
+            'handover_donation_decision': RentalCase.DonationDecision.RECEIVED,
+            'handover_donation_amount': '25,00',
             'borrower_signature_name': '',
             'club_signature_name': 'Max Helfer',
             'borrower_signature_data': self.signature_data,
@@ -862,6 +882,48 @@ class HandoverViewTests(TestCase):
         self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
         self.assertEqual(self.case.protocols.count(), 0)
         self.assertContains(response, 'Name Entleiher-Unterschrift muss als Klarname eingegeben werden.')
+
+    def test_handover_post_documents_no_donation(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
+            f'condition_{self.item.pk}': 'vollständig und sauber',
+            f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk)],
+            'handover_donation_decision': RentalCase.DonationDecision.WAIVED,
+            'handover_donation_amount': '25,00',
+            'handover_donation_note': 'Entleiher tätigt keine Spende.',
+            'borrower_signature_name': 'Erika Beispiel',
+            'club_signature_name': 'Max Helfer',
+            'borrower_signature_data': self.signature_data,
+            'club_signature_data': self.signature_data,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.HANDED_OVER)
+        self.assertEqual(self.case.donation_decision, RentalCase.DonationDecision.WAIVED)
+        self.assertEqual(self.case.received_donation, Decimal('0.00'))
+        self.assertEqual(self.case.donation_payment_method, '')
+        self.assertIsNone(self.case.donation_received_at)
+        self.assertEqual(self.case.donation_note, 'Entleiher tätigt keine Spende.')
+
+    def test_handover_post_requires_donation_decision(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:handover', args=[self.case.pk]), {
+            f'condition_{self.item.pk}': 'vollständig und sauber',
+            f'handover_accessories_{self.item.pk}': [str(self.required_accessory.pk)],
+            'borrower_signature_name': 'Erika Beispiel',
+            'club_signature_name': 'Max Helfer',
+            'borrower_signature_data': self.signature_data,
+            'club_signature_data': self.signature_data,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.status, RentalCase.Status.PREPARED)
+        self.assertEqual(self.case.protocols.count(), 0)
+        self.assertContains(response, 'Bitte dokumentiere bei der Abholung')
 
 
 class ReturnViewTests(TestCase):
