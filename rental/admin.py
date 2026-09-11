@@ -109,11 +109,13 @@ class RentalCaseAdmin(admin.ModelAdmin):
                     rental_case.transition_to(target_status, save=False)
                     rental_case.received_donation = rental_case.expected_donation
                     rental_case.donation_decision = RentalCase.DonationDecision.RECEIVED
+                    rental_case.donation_payment_method = RentalCase.DonationPaymentMethod.CASH
                     rental_case.donation_received_at = timezone.now()
                     rental_case.save(update_fields=[
                         'status',
                         'received_donation',
                         'donation_decision',
+                        'donation_payment_method',
                         'donation_received_at',
                         'closed_at',
                         'updated_at',

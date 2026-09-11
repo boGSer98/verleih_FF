@@ -215,17 +215,17 @@ Abnahmekriterien:
 
 ## Phase 8 – Spenden-/Zahlungsprozess
 
-Status: Dashboard-Formular zum Dokumentieren von Spendenentscheidung, Zahlungsart, Betrag, Zahlungsnotiz, Eingangszeitpunkt sowie Ausstellung/Storno einer Zuwendungsbestätigung umgesetzt.
+Status: Spendenentscheidung wird in der mobilen Übergabe bei Abholung dokumentiert; Barspende oder keine Spende, Betrag/Notiz/Eingangszeitpunkt sowie Ausstellung/Storno einer Zuwendungsbestätigung umgesetzt.
 
 Ziel: Erwartete und erhaltene Spenden/Zahlungen sind nachvollziehbar.
 
 Aufgaben:
 
-1. Spendenstatus am Vorgang konkretisieren. Status: umgesetzt mit offen, erhalten, teilweise erhalten und verzichtet.
-2. Zahlungsart ergänzen. Status: umgesetzt mit Bar, Überweisung, PayPal und Sonstig.
-3. Zahlungsnotiz und Eingangsdatum speichern. Status: umgesetzt.
-4. Offene Spenden im Dashboard anzeigen. Status: umgesetzt mit Formular „Spendenentscheidung speichern“.
-5. Abschluss blockieren oder warnen, wenn Spende offen ist. Status: umgesetzt als blockierender Statuswechsel bei offener Spendenentscheidung.
+1. Spendenstatus am Vorgang konkretisieren. Status: umgesetzt mit bei Abholung bar erhalten oder keine Spende.
+2. Zahlungsart ergänzen. Status: im operativen Ablauf immer Bar; keine Spende bleibt ohne Zahlungsart.
+3. Zahlungsnotiz und Eingangsdatum speichern. Status: umgesetzt direkt bei mobiler Übergabe.
+4. Offene Spenden im Dashboard anzeigen. Status: offene Alt-/Klärfälle bleiben sichtbar.
+5. Abschluss blockieren oder warnen, wenn Spende offen ist. Status: Abschluss fordert nur noch Nachdokumentation, falls die Übergabe noch keine Entscheidung enthält.
 6. Zuwendungsbestätigung aus Vorgängen mit erhaltener Spende erzeugen. Status: umgesetzt mit eigenem Fachdatensatz, pflegbaren Geber-/Vereinsdaten, Berechtigung `can_issue_donation_receipt`, Bescheinigungsnummer, PDF nach BMF-Vordruck 034122 und Storno.
 
 Abnahmekriterien:
@@ -311,7 +311,7 @@ Abnahmeszenario:
 5. Helfer öffnet mobile Übergabe.
 6. Entleiher und Helfer unterschreiben.
 7. PDF wird erstellt und per E-Mail versendet.
-8. Spende wird erfasst.
+8. Spende wird bei der Abholung als Barspende oder „keine Spende“ erfasst.
 9. Helfer öffnet mobile Rücknahme.
 10. Rückgabe wird dokumentiert und unterschrieben.
 11. PDF wird erstellt und per E-Mail versendet.

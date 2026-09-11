@@ -94,24 +94,20 @@
       <form class="completion-form" method="post" action="{{ card.complete_url }}">
         {% csrf_token %}
         {% if needs_donation_decision %}
+          <p class="messages"><span>Die Spendenentscheidung fehlt noch. Sie soll bei der Abholung dokumentiert werden; bitte den Vorgang vor dem Abschluss fachlich prüfen.</span></p>
           <div class="form-grid">
             <label>Spendenentscheidung
               <select name="decision" required>
-                {% for value,label in donation_decision_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                <option value="received">Barspende erhalten</option>
+                <option value="waived">Keine Spende erhalten</option>
               </select>
             </label>
-            <label>Betrag
+            <label>Betrag der Barspende
               <input name="amount" inputmode="decimal" value="{{ card.case.expected_donation }}">
             </label>
-            <label>Zahlungsart
-              <select name="payment_method">
-                <option value="">Nicht angegeben</option>
-                {% for value,label in donation_payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-              </select>
-            </label>
           </div>
-          <label>Zahlungs-/Spendennotiz
-            <textarea name="donation_note" placeholder="z. B. bar erhalten, überwiesen, Vorstand verzichtet">{{ card.case.donation_note }}</textarea>
+          <label>Spendennotiz
+            <textarea name="donation_note" placeholder="z. B. bar bei Abholung erhalten oder keine Spende getätigt">{{ card.case.donation_note }}</textarea>
           </label>
         {% endif %}
         {% if needs_clarification_resolution %}
