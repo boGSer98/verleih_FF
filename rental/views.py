@@ -796,15 +796,16 @@ def return_case(request, pk):
                 protocol.club_signature.save(club_signature.name, club_signature, save=False)
                 protocol.save(update_fields=['borrower_signature', 'club_signature', 'updated_at'])
                 for item, _return_status, _accessory_status, _damage_amount in item_results:
-                    photo_caption = request.POST.get(f'photo_caption_{item.pk}', '').strip()
-                    for uploaded in request.FILES.getlist(f'return_photos_{item.pk}'):
+                    fallback_caption = request.POST.get(f'photo_caption_{item.pk}', '').strip()
+                    for index, uploaded in enumerate(request.FILES.getlist(f'return_photos_{item.pk}')):
                         if uploaded.content_type and not uploaded.content_type.startswith('image/'):
                             continue
+                        photo_note = request.POST.get(f'photo_note_{item.pk}_{index}', '').strip()
                         ProtocolPhoto.objects.create(
                             protocol=protocol,
                             rental_case_item=item,
                             image=uploaded,
-                            caption=photo_caption,
+                            caption=photo_note or fallback_caption,
                         )
 
                 target_status = RentalCase.Status.CLARIFICATION if has_issue else RentalCase.Status.RETURNED
