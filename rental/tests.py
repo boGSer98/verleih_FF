@@ -418,19 +418,21 @@ class DashboardViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/admin/login/', response['Location'])
 
-    def test_case_create_page_uses_minute_time_inputs_and_creates_reserved_case(self):
+    def test_case_create_page_uses_date_only_period_and_creates_reserved_case(self):
         manager = get_user_model().objects.create_user(username='verwaltung', password='testpass123')
         manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
-        start = timezone.localtime(timezone.now()).replace(hour=10, minute=15, second=0, microsecond=0)
-        end = start + timezone.timedelta(hours=3)
+        start = timezone.localdate() + timezone.timedelta(days=1)
+        end = start + timezone.timedelta(days=2)
         self.client.force_login(manager)
 
         response = self.client.get(reverse('rental:case_create'))
         self.assertEqual(response.status_code, 200)
         content = response.content.decode('utf-8')
-        self.assertIn('type="time"', content)
-        self.assertIn('step="60"', content)
-        self.assertIn('Format: HH:MM', content)
+        self.assertIn('type="date"', content)
+        self.assertNotIn('type="time"', content)
+        self.assertNotIn('reserved_from_time', content)
+        self.assertNotIn('reserved_until_time', content)
+        self.assertIn('Uhrzeiten werden nicht abgefragt', content)
         self.assertIn('Weitere Artikelposition manuell hinzufügen', content)
         self.assertNotIn('<label>Artikel 2', content)
         self.assertIn('Sobald dort ein Artikel ausgewählt wurde, erscheint automatisch eine weitere leere Position.', content)
@@ -457,10 +459,8 @@ class DashboardViewTests(TestCase):
         response = self.client.post(reverse('rental:case_create'), {
             'borrower_name': 'Web Entleiher',
             'borrower_email': 'web@example.org',
-            'reserved_from_date': start.date().isoformat(),
-            'reserved_from_time': start.strftime('%H:%M'),
-            'reserved_until_date': end.date().isoformat(),
-            'reserved_until_time': end.strftime('%H:%M'),
+            'reserved_from_date': start.isoformat(),
+            'reserved_until_date': end.isoformat(),
             'product_1': str(self.product.pk),
             'quantity_1': '2',
             'notes': 'per Webseite angelegt',
@@ -469,7 +469,8 @@ class DashboardViewTests(TestCase):
         rental_case = RentalCase.objects.get(borrower__name='Web Entleiher')
         self.assertRedirects(response, reverse('rental:case_detail', args=[rental_case.pk]))
         self.assertEqual(rental_case.status, RentalCase.Status.RESERVED)
-        self.assertEqual(rental_case.reserved_from.second, 0)
+        self.assertEqual(timezone.localtime(rental_case.reserved_from).time().isoformat(), '00:00:00')
+        self.assertEqual(timezone.localtime(rental_case.reserved_until).time().isoformat(), '23:59:59')
         self.assertEqual(rental_case.items.get().quantity, 2)
 
     def test_case_create_accepts_dynamically_added_item_rows(self):
@@ -484,9 +485,7 @@ class DashboardViewTests(TestCase):
             'borrower_name': 'Dynamischer Entleiher',
             'borrower_email': 'dynamisch@example.org',
             'reserved_from_date': start.date().isoformat(),
-            'reserved_from_time': start.strftime('%H:%M'),
             'reserved_until_date': end.date().isoformat(),
-            'reserved_until_time': end.strftime('%H:%M'),
             'product_1': str(self.product.pk),
             'quantity_1': '1',
             'product_6': str(extra_product.pk),
@@ -501,17 +500,15 @@ class DashboardViewTests(TestCase):
     def test_product_availability_endpoint_uses_entered_period(self):
         manager = get_user_model().objects.create_user(username='verwaltung-verfuegbarkeit', password='testpass123')
         manager.groups.add(Group.objects.get(name=GROUP_MANAGEMENT))
-        start = timezone.localtime(timezone.now()).replace(hour=13, minute=0, second=0, microsecond=0)
-        end = start + timezone.timedelta(hours=2)
+        start = timezone.localtime(timezone.now()).replace(hour=0, minute=0, second=0, microsecond=0) + timezone.timedelta(days=1)
+        end = start.replace(hour=23, minute=59, second=59)
         blocking_case = self._create_case(status=RentalCase.Status.RESERVED, start=start, end=end)
         blocking_case.items.update(quantity=self.product.stock_quantity)
         self.client.force_login(manager)
 
         response = self.client.get(reverse('rental:product_availability'), {
             'reserved_from_date': start.date().isoformat(),
-            'reserved_from_time': start.strftime('%H:%M'),
             'reserved_until_date': end.date().isoformat(),
-            'reserved_until_time': end.strftime('%H:%M'),
         })
 
         self.assertEqual(response.status_code, 200)
@@ -548,9 +545,7 @@ class DashboardViewTests(TestCase):
             'borrower_city': 'Musterstadt',
             'borrower_notes': 'Daten bei Vorgangsanlage geprüft.',
             'reserved_from_date': start.date().isoformat(),
-            'reserved_from_time': start.strftime('%H:%M'),
             'reserved_until_date': end.date().isoformat(),
-            'reserved_until_time': end.strftime('%H:%M'),
             'product_1': str(self.product.pk),
             'quantity_1': '1',
         })

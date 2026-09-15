@@ -18,7 +18,7 @@
     .item-row { display:grid; gap:.6rem; grid-template-columns:minmax(0,1fr) 120px auto; align-items:end; padding:.75rem; border:1px solid #dce4ed; border-radius:16px; background:#f8fbff; }
     label { display:grid; gap:.25rem; font-weight:700; color:var(--muted); }
     input, select, textarea { width:100%; min-height:48px; border:1px solid var(--border); border-radius:12px; padding:.75rem; font:inherit; color:var(--text); background:#fff; }
-    input[type="time"] { min-width:7.5rem; }
+    input[type="date"] { min-width:7.5rem; }
     textarea { min-height:90px; resize:vertical; }
     .button-row { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
     button, .button { min-height:54px; border:0; border-radius:999px; padding:.85rem 1rem; font-weight:800; font:inherit; text-decoration:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
@@ -72,14 +72,12 @@
 
       <section class="card form-step is-hidden" data-step="period">
         <h2>2. Zeitraum</h2>
-        <p class="muted">Uhrzeiten werden bewusst nur minutengenau im Format HH:MM erfasst.</p>
+        <p class="muted">Für den Verleih reicht das Datum. Uhrzeiten werden nicht abgefragt; die Verfügbarkeit wird tageweise geprüft.</p>
         <div class="grid">
           <label>Beginn Datum <input required type="date" name="reserved_from_date" value="{{ values.reserved_from_date }}"></label>
-          <label>Beginn Uhrzeit <input required type="time" name="reserved_from_time" step="60" value="{{ values.reserved_from_time }}" aria-describedby="time-format"></label>
           <label>Ende Datum <input required type="date" name="reserved_until_date" value="{{ values.reserved_until_date }}"></label>
-          <label>Ende Uhrzeit <input required type="time" name="reserved_until_time" step="60" value="{{ values.reserved_until_time }}"></label>
         </div>
-        <p id="time-format" class="muted">Format: HH:MM, keine sekundengenaue Betrachtung. Nach vollständiger Zeitraumangabe wird die Artikelverfügbarkeit automatisch geprüft.</p>
+        <p class="muted">Nach vollständiger Datumsangabe wird die Artikelverfügbarkeit automatisch geprüft.</p>
         <p id="availability-summary" class="availability" aria-live="polite">Zeitraum eingeben, danach werden verfügbare Artikel angezeigt.</p>
         <div class="step-actions"><button class="secondary" type="button" data-save-next="period" data-next-step="items">Weiter zu Artikeln</button></div>
         <p class="autosave-status" data-autosave-status="period" aria-live="polite"></p>
@@ -234,14 +232,14 @@
     }
     function periodParams() {
       const params = new URLSearchParams();
-      ['reserved_from_date', 'reserved_from_time', 'reserved_until_date', 'reserved_until_time'].forEach((name) => {
+      ['reserved_from_date', 'reserved_until_date'].forEach((name) => {
         const value = document.querySelector(`[name="${name}"]`).value;
         if (value) params.set(name, value);
       });
       return params;
     }
     function hasCompletePeriod() {
-      return ['reserved_from_date', 'reserved_from_time', 'reserved_until_date', 'reserved_until_time']
+      return ['reserved_from_date', 'reserved_until_date']
         .every((name) => document.querySelector(`[name="${name}"]`).value);
     }
     function updateAvailabilityOptions() {
