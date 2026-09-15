@@ -3,7 +3,7 @@ import binascii
 import calendar as calendar_module
 import re
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -213,12 +213,27 @@ def borrower_update(request, pk):
     })
 
 
-def _parse_local_datetime(date_value, time_value, label):
+def _parse_local_date(date_value, label):
     try:
-        naive = datetime.strptime(f'{date_value} {time_value}', '%Y-%m-%d %H:%M')
+        return datetime.strptime(date_value, '%Y-%m-%d').date()
     except (TypeError, ValueError) as exc:
-        raise ValueError(f'{label} muss im Format Datum und HH:MM angegeben werden.') from exc
-    return timezone.make_aware(naive, timezone.get_current_timezone())
+        raise ValueError(f'{label} muss als Datum angegeben werden.') from exc
+
+
+def _local_day_start(day):
+    return timezone.make_aware(datetime.combine(day, time.min), timezone.get_current_timezone())
+
+
+def _local_day_end(day):
+    return timezone.make_aware(datetime.combine(day, time.max.replace(microsecond=0)), timezone.get_current_timezone())
+
+
+def _parse_local_date_range(start_date_value, end_date_value):
+    start_date = _parse_local_date(start_date_value, 'Beginn')
+    end_date = _parse_local_date(end_date_value, 'Ende')
+    if end_date < start_date:
+        raise ValueError('Ende muss am oder nach dem Beginn liegen.')
+    return _local_day_start(start_date), _local_day_end(end_date)
 
 
 def _case_form_item_indices(post_data=None):
@@ -248,18 +263,10 @@ def _products_availability_payload(reserved_from, reserved_until):
 @permission_required('rental.view_product', raise_exception=True)
 def product_availability(request):
     try:
-        reserved_from = _parse_local_datetime(
+        reserved_from, reserved_until = _parse_local_date_range(
             request.GET.get('reserved_from_date'),
-            request.GET.get('reserved_from_time'),
-            'Beginn',
-        )
-        reserved_until = _parse_local_datetime(
             request.GET.get('reserved_until_date'),
-            request.GET.get('reserved_until_time'),
-            'Ende',
         )
-        if reserved_until <= reserved_from:
-            raise ValueError('Ende muss nach Beginn liegen.')
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc), 'products': {}}, status=400)
     return JsonResponse({'ok': True, 'products': _products_availability_payload(reserved_from, reserved_until)})
@@ -316,8 +323,7 @@ def case_create(request):
             else:
                 borrower = Borrower(**borrower_data)
 
-            reserved_from = _parse_local_datetime(request.POST.get('reserved_from_date'), request.POST.get('reserved_from_time'), 'Beginn')
-            reserved_until = _parse_local_datetime(request.POST.get('reserved_until_date'), request.POST.get('reserved_until_time'), 'Ende')
+            reserved_from, reserved_until = _parse_local_date_range(request.POST.get('reserved_from_date'), request.POST.get('reserved_until_date'))
             product_rows = []
             for index in _case_form_item_indices(request.POST):
                 product_id = request.POST.get(f'product_{index}')
