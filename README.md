@@ -47,7 +47,7 @@ http://localhost:8100/admin/
 
 Docker veröffentlicht den Host-Port `8100` auf den internen Container-Port `8000`.
 
-Die Startseite ist ein login-geschütztes, mobile-optimiertes Verleih-Dashboard für Tagesaufgaben.
+Die Startseite ist ein login-geschütztes, mobile-optimiertes Verleih-Dashboard für Tagesaufgaben, überfällige Abholungen/Rücknahmen und offene Klärungen.
 
 ## Zugriff über Nginx Proxy Manager
 
