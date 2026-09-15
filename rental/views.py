@@ -66,6 +66,7 @@ def _case_card(rental_case):
         'donation_receipt_url': reverse('rental:donation_receipt_create', args=[rental_case.pk]),
         'donation_received_url': reverse('rental:donation_received', args=[rental_case.pk]),
         'complete_url': reverse('rental:case_complete', args=[rental_case.pk]),
+        'cancel_url': reverse('rental:case_cancel', args=[rental_case.pk]),
         'next_action': _case_next_action(rental_case),
         'item_summary': item_summary or 'Noch keine Artikel erfasst',
     }
@@ -402,6 +403,7 @@ def case_detail(request, pk):
         'latest_handover_protocol': latest_handover_protocol,
         'latest_return_protocol': latest_return_protocol,
         'can_complete': can_complete,
+        'can_cancel': rental_case.can_transition_to(RentalCase.Status.CANCELLED),
         'needs_donation_decision': rental_case.has_open_donation_decision(),
         'needs_clarification_resolution': rental_case.status == RentalCase.Status.CLARIFICATION,
         'donation_decision_choices': [
@@ -419,6 +421,31 @@ def case_detail(request, pk):
         'can_issue_donation_receipt': request.user.has_perm('rental.can_issue_donation_receipt'),
     }
     return render(request, 'rental/case_detail.html', context)
+
+
+@login_required
+@permission_required('rental.change_rentalcase', raise_exception=True)
+def cancel_case(request, pk):
+    rental_case = get_object_or_404(RentalCase.objects.select_related('borrower'), pk=pk)
+    if request.method != 'POST':
+        return HttpResponse('Vorgangsabbruch erfordert POST.', status=405)
+
+    if not rental_case.can_transition_to(RentalCase.Status.CANCELLED):
+        messages.error(request, 'Dieser Vorgang kann aktuell nicht abgebrochen werden.')
+        return redirect('rental:case_detail', pk=rental_case.pk)
+
+    cancel_note = request.POST.get('cancel_note', '').strip()
+    update_fields = ['status', 'updated_at']
+    if cancel_note:
+        rental_case.notes = (rental_case.notes + '\n\n' if rental_case.notes else '') + f'Abbruch: {cancel_note}'
+        update_fields.append('notes')
+
+    with transaction.atomic():
+        rental_case.transition_to(RentalCase.Status.CANCELLED, save=False)
+        rental_case.save(update_fields=update_fields)
+
+    messages.success(request, f'Vorgang {rental_case.number} wurde abgebrochen.')
+    return redirect('rental:case_detail', pk=rental_case.pk)
 
 
 

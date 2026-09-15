@@ -103,6 +103,7 @@ Aufgaben:
 7. Kalenderübersicht für aktuelle Vorgänge. Status: umgesetzt als mobile Monatskalenderansicht mit aktiven Vorgängen, Monatsnavigation und Vorgangschips in den Tageszellen.
 8. Vorgangsdetail außerhalb des Django-Admins. Status: umgesetzt mit mobilen Aktionsbuttons, Artikeln, Dokumenten-/Mailaktionen, Protokollnotizen und Rücknahmefotos.
 9. Entleiherverwaltung außerhalb des Django-Admins. Status: umgesetzt mit Dashboard-Button, Suchliste, Stammdatenbearbeitung und Start eines neuen Vorgangs aus einem Entleiher.
+10. Vorgangsabbruch außerhalb des Django-Admins. Status: umgesetzt für stornierbare Anfrage-/Reservierungs-/Abholvorbereitungs-Vorgänge mit optionaler Abbruchnotiz.
 
 Abnahmekriterien:
 

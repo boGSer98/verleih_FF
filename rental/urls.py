@@ -17,6 +17,7 @@ urlpatterns = [
     path('vorgaenge/<int:pk>/spende-erhalten/', views.mark_donation_received, name='donation_received'),
     path('vorgaenge/<int:pk>/zuwendungsbestaetigung/', views.create_donation_receipt, name='donation_receipt_create'),
     path('zuwendungsbestaetigungen/<int:pk>/stornieren/', views.cancel_donation_receipt, name='donation_receipt_cancel'),
+    path('vorgaenge/<int:pk>/abbrechen/', views.cancel_case, name='case_cancel'),
     path('vorgaenge/<int:pk>/abschliessen/', views.complete_case, name='case_complete'),
     path('vorgaenge/<int:pk>/dokumente/reservierung/', views.generate_reservation_document, name='reservation_document'),
     path('vorgaenge/<int:pk>/dokumente/reservierung/senden/', views.send_reservation_document, name='reservation_document_send'),
