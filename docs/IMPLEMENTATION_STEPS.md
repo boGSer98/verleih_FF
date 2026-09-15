@@ -93,6 +93,7 @@ Aufgaben:
 2. Karten/Listen für:
    - Heute abzuholen – Status: umgesetzt.
    - Heute zurückzugeben – Status: umgesetzt.
+   - Überfällige Vorgänge – Status: umgesetzt für nicht erledigte Abholungen und Rücknahmen mit Datum vor heute.
    - Offene Spenden – Status: umgesetzt.
    - Klärung nötig – Status: umgesetzt.
    - Kürzlich abgeschlossene Vorgänge – Status: umgesetzt mit den letzten fünf abgeschlossenen Vorgängen.

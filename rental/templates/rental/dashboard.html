@@ -58,6 +58,7 @@
     .lane { border-top: 5px solid var(--primary); }
     .lane.pickup { border-color: var(--ok); }
     .lane.return { border-color: var(--primary); }
+    .lane.overdue { border-color: var(--danger); background: #fff8f8; }
     .lane.donation { border-color: var(--warn); }
     .lane.clarification { border-color: var(--danger); }
     .lane.completed { border-color: var(--ok); opacity: .96; }
@@ -113,6 +114,7 @@
     <section class="summary-grid" aria-label="Kennzahlen">
       <article class="card"><div class="summary-label">Heute abzuholen</div><div class="summary-number">{{ pickups_today|length }}</div></article>
       <article class="card"><div class="summary-label">Heute zurückzugeben</div><div class="summary-number">{{ returns_today|length }}</div></article>
+      <article class="card"><div class="summary-label">Überfällig</div><div class="summary-number">{{ overdue_cases|length }}</div></article>
       <article class="card"><div class="summary-label">Offene Spenden</div><div class="summary-number">{{ donation_open|length }}</div></article>
       <article class="card"><div class="summary-label">Klärfälle</div><div class="summary-number">{{ clarification|length }}</div></article>
     </section>
@@ -120,6 +122,7 @@
     <section class="process-grid" aria-label="Prozessschritte">
       {% include "rental/partials/dashboard_lane.html" with title="Abholung heute" css_class="pickup" cards=pickups_today empty_text="Heute ist keine Abholung fällig." %}
       {% include "rental/partials/dashboard_lane.html" with title="Rücknahme heute" css_class="return" cards=returns_today empty_text="Heute ist keine Rücknahme fällig." %}
+      {% include "rental/partials/dashboard_lane.html" with title="Überfällige Vorgänge" css_class="overdue" cards=overdue_cases empty_text="Keine überfälligen Abholungen oder Rücknahmen." %}
       {% include "rental/partials/dashboard_lane.html" with title="Spende offen" css_class="donation" cards=donation_open empty_text="Aktuell sind keine Spenden offen." %}
       {% include "rental/partials/dashboard_lane.html" with title="Klärung nötig" css_class="clarification" cards=clarification empty_text="Keine offenen Klärfälle." %}
       {% include "rental/partials/dashboard_lane.html" with title="Kürzlich abgeschlossen" css_class="completed" cards=recent_completed empty_text="Noch keine kürzlich abgeschlossenen Vorgänge." %}

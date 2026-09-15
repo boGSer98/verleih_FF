@@ -294,6 +294,16 @@ class DashboardViewTests(TestCase):
             start=today_start - timezone.timedelta(days=1),
             end=today_start + timezone.timedelta(hours=2),
         )
+        overdue_pickup = self._create_case(
+            status=RentalCase.Status.RESERVED,
+            start=today_start - timezone.timedelta(days=1),
+            end=today_start + timezone.timedelta(hours=1),
+        )
+        overdue_return = self._create_case(
+            status=RentalCase.Status.HANDED_OVER,
+            start=today_start - timezone.timedelta(days=2),
+            end=today_start - timezone.timedelta(days=1),
+        )
         donation = self._create_case(
             status=RentalCase.Status.DONATION_OPEN,
             start=today_start - timezone.timedelta(days=2),
@@ -312,11 +322,15 @@ class DashboardViewTests(TestCase):
         self.assertIn('name="viewport" content="width=device-width, initial-scale=1"', content)
         self.assertIn('Abholung heute', content)
         self.assertIn('Rücknahme heute', content)
+        self.assertIn('Überfällig', content)
+        self.assertIn('Überfällige Vorgänge', content)
         self.assertIn('Spende offen', content)
         self.assertIn('Klärung nötig', content)
         self.assertIn('Kürzlich abgeschlossen', content)
         self.assertIn(pickup.number, content)
         self.assertIn(returned_due.number, content)
+        self.assertIn(overdue_pickup.number, content)
+        self.assertIn(overdue_return.number, content)
         self.assertIn(donation.number, content)
         self.assertIn(clarification.number, content)
         self.assertIn(completed.number, content)

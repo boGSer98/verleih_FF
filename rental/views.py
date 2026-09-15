@@ -100,6 +100,20 @@ def dashboard(request):
             RentalCase.Status.DONATION_RECEIVED,
         ],
     ).order_by('reserved_until', 'number')
+    overdue_cases = cases.filter(
+        Q(
+            reserved_from__date__lt=today,
+            status__in=[RentalCase.Status.RESERVED, RentalCase.Status.PREPARED],
+        )
+        | Q(
+            reserved_until__date__lt=today,
+            status__in=[
+                RentalCase.Status.HANDED_OVER,
+                RentalCase.Status.DONATION_OPEN,
+                RentalCase.Status.DONATION_RECEIVED,
+            ],
+        )
+    ).distinct().order_by('reserved_until', 'reserved_from', 'number')
     donation_open = cases.filter(status=RentalCase.Status.DONATION_OPEN).order_by('reserved_until', 'number')
     clarification = cases.filter(status=RentalCase.Status.CLARIFICATION).order_by('reserved_until', 'number')
     recent_completed = cases.filter(status=RentalCase.Status.COMPLETED).order_by('-closed_at', '-updated_at', '-number')
@@ -129,6 +143,7 @@ def dashboard(request):
         'search_results': [_case_card(case) for case in search_results[:10]],
         'pickups_today': [_case_card(case) for case in pickups_today],
         'returns_today': [_case_card(case) for case in returns_today],
+        'overdue_cases': [_case_card(case) for case in overdue_cases[:10]],
         'donation_open': [_case_card(case) for case in donation_open[:10]],
         'clarification': [_case_card(case) for case in clarification[:10]],
         'recent_completed': [_case_card(case) for case in recent_completed[:5]],
