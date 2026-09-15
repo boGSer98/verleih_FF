@@ -378,6 +378,37 @@ class DashboardViewTests(TestCase):
         self.assertIn('Dokumente & Mailversand', content)
         self.assertIn('Rücknahmefotos zu diesem Artikel', content)
         self.assertIn('Kratzer am Gestell', content)
+        self.assertNotIn('Vorgang abbrechen', content)
+
+    def test_case_detail_allows_cancelling_reserved_case(self):
+        case = self._create_case(status=RentalCase.Status.RESERVED)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('rental:case_detail', args=[case.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('Vorgang abbrechen', content)
+        self.assertIn(reverse('rental:case_cancel', args=[case.pk]), content)
+
+        response = self.client.post(reverse('rental:case_cancel', args=[case.pk]), {
+            'cancel_note': 'Entleiher hat abgesagt.',
+        })
+
+        self.assertRedirects(response, reverse('rental:case_detail', args=[case.pk]))
+        case.refresh_from_db()
+        self.assertEqual(case.status, RentalCase.Status.CANCELLED)
+        self.assertIn('Abbruch: Entleiher hat abgesagt.', case.notes)
+
+    def test_case_cancel_rejects_non_cancellable_case(self):
+        case = self._create_case(status=RentalCase.Status.HANDED_OVER)
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('rental:case_cancel', args=[case.pk]))
+
+        self.assertRedirects(response, reverse('rental:case_detail', args=[case.pk]))
+        case.refresh_from_db()
+        self.assertEqual(case.status, RentalCase.Status.HANDED_OVER)
 
     def test_case_detail_requires_login(self):
         case = self._create_case(status=RentalCase.Status.RESERVED)

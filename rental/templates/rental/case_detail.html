@@ -17,6 +17,7 @@
     .button, button { min-height:36px; border:0; border-radius:999px; padding:.42rem .75rem; font:inherit; font-size:.9rem; line-height:1.15; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; width:auto; max-width:100%; background:var(--primary); color:white; cursor:pointer; }
     .button.secondary, button.secondary { background:#e7eef8; color:var(--primary); }
     .button.warn { background:#fff2d9; color:#8a4b00; }
+    .button.danger, button.danger { background:#ffe5e5; color:var(--danger); }
     .card { background:var(--card); border-radius:18px; padding:1rem; margin-bottom:1rem; box-shadow:0 2px 10px rgb(12 31 56 / .08); }
     .case-meta, .doc-grid { display:flex; flex-wrap:wrap; gap:.45rem; margin:.55rem 0; }
     .pill { background:#edf2f7; border-radius:999px; padding:.25rem .6rem; font-size:.9rem; }
@@ -86,6 +87,20 @@
         {% endif %}
       </div>
     </section>
+
+    {% if can_cancel %}
+    <section class="card">
+      <h2>Vorgang abbrechen</h2>
+      <p class="muted">Brich den Vorgang nur ab, wenn die Reservierung nicht weitergeführt wird. Abgebrochene Vorgänge blockieren keine Artikel mehr.</p>
+      <form class="completion-form" method="post" action="{{ card.cancel_url }}">
+        {% csrf_token %}
+        <label>Abbruchgrund / Notiz
+          <textarea name="cancel_note" placeholder="Optional: z. B. vom Entleiher abgesagt, Termin entfällt"></textarea>
+        </label>
+        <button class="danger" type="submit">Vorgang abbrechen</button>
+      </form>
+    </section>
+    {% endif %}
 
     {% if can_complete %}
     <section id="abschluss" class="card">
